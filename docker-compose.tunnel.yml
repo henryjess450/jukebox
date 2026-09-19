@@ -1,0 +1,19 @@
+# Optional overlay adding Cloudflare Tunnel, so the guest page is reachable
+# from outside the venue without opening a port or touching the router.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+#
+# TUNNEL_TOKEN comes from the Cloudflare Zero Trust dashboard when you create
+# the tunnel. Point the tunnel's public hostname at http://localhost:8080.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: jukebox-tunnel
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    depends_on:
+      - jukebox

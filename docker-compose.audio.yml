@@ -1,0 +1,64 @@
+# Audio layer: librespot, plus the sound-card access the app needs for amixer.
+# Linux only — /dev/snd does not exist on macOS or Windows.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.audio.yml up -d --build
+#
+# The first build compiles librespot from source; allow 5-15 minutes.
+
+services:
+  librespot:
+    build:
+      context: .
+      dockerfile: Dockerfile.librespot
+      args:
+        # Pin this. `dev` moves under you and this box runs unattended.
+        LIBRESPOT_REF: v0.6.0
+    container_name: jukebox-librespot
+    restart: unless-stopped
+
+    # Spotify Connect discovery is mDNS, and mDNS does not cross Docker's
+    # bridge. Without host networking your phone can never claim the device.
+    network_mode: host
+
+    devices:
+      - /dev/snd:/dev/snd
+
+    # The container user must be in the host's audio group to open the card.
+    #   getent group audio | cut -d: -f3
+    group_add:
+      - "${AUDIO_GID:-29}"
+
+    volumes:
+      # The authentication blob. Without a persistent cache librespot forgets
+      # who it is on every restart and the jukebox goes silent.
+      - librespot-cache:/cache
+
+    command:
+      - --name=${DEVICE_NAME:-Jukebox}
+      - --backend=alsa
+      - --device=${ALSA_DEVICE:-default}
+      - --cache=/cache
+      - --bitrate=320
+      - --device-type=speaker
+      - --initial-volume=70
+      - --mixer=alsa
+      - --volume-ctrl=linear
+      - --disable-audio-cache
+
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep librespot > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  jukebox:
+    # For amixer only. The app never opens the card for playback.
+    devices:
+      - /dev/snd:/dev/snd
+    group_add:
+      - "${AUDIO_GID:-29}"
+    depends_on:
+      - librespot
+
+volumes:
+  librespot-cache:

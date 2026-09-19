@@ -1,0 +1,39 @@
+# The jukebox app. Runs anywhere Docker runs — no sound card required, because
+# the app itself never opens the audio device; librespot does.
+#
+#   docker compose up -d --build
+#
+# On the EliteDesk, add the audio layer to bring up librespot and give the app
+# access to the mixer:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.audio.yml up -d --build
+#
+# Compose merges list fields rather than replacing them, so audio wiring has to
+# be added by a second file — it cannot be subtracted by one.
+
+services:
+  jukebox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jukebox-app
+    restart: unless-stopped
+
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/jukebox.db
+      # Inside the container we must listen on all interfaces; the published
+      # port below is what decides who can actually reach it.
+      HOST: 0.0.0.0
+      PORT: ${PORT:-8080}
+
+    # Loopback only: a reverse proxy on the host fronts this. Drop the
+    # 127.0.0.1 prefix to reach it from other machines on the LAN.
+    ports:
+      - "127.0.0.1:${PORT:-8080}:${PORT:-8080}"
+
+    volumes:
+      - jukebox-data:/data
+
+volumes:
+  jukebox-data:

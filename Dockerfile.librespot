@@ -1,0 +1,37 @@
+# librespot: the headless Spotify Connect endpoint that actually makes sound.
+#
+# Built from source rather than pulled from a third-party image — this process
+# holds the credentials to the owner's Premium account, so the provenance of
+# the binary matters more than the build time.
+#
+# Pin LIBRESPOT_REF to a tag for a reproducible box; `dev` tracks upstream.
+
+FROM rust:1-bookworm AS builder
+
+ARG LIBRESPOT_REF=v0.6.0
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libasound2-dev pkg-config git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 --branch "${LIBRESPOT_REF}" https://github.com/librespot-org/librespot.git .
+
+# ALSA only — we are not using pulse, jack, or any of the other backends.
+RUN cargo build --release --no-default-features --features alsa-backend
+
+# --- runtime ---------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libasound2 alsa-utils tini ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/librespot /usr/local/bin/librespot
+
+# Credentials land here. This MUST be a persistent volume: without a cache,
+# the authentication blob lives only in memory and the device goes silent
+# after any restart until someone re-selects it from a Spotify client.
+VOLUME ["/cache"]
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/librespot"]
