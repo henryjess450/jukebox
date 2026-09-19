@@ -8,7 +8,7 @@
 
     Windows runs the APP ONLY. Docker Desktop's Linux VM has no access to the
     sound card, so librespot cannot play audio here. For the real jukebox the
-    box needs Linux — see DEPLOY.md.
+    box needs Linux -- see DEPLOY.md.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
@@ -26,6 +26,8 @@ param(
     [string] $AdminPassword
 )
 
+# This file is deliberately ASCII-only: Windows PowerShell 5.1 decodes .ps1
+# as ANSI unless the file carries a UTF-8 BOM, which mangles anything else.
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 
@@ -59,7 +61,7 @@ Write-Step 'Configuration'
 if (Test-Path .env) {
     Write-Ok '.env already exists; leaving it alone'
 } else {
-    if (-not (Test-Path .env.example)) { throw '.env.example is missing — is this the repository root?' }
+    if (-not (Test-Path .env.example)) { throw '.env.example is missing -- is this the repository root?' }
 
     # 36 random bytes, base64. Signs session cookies.
     $bytes = New-Object byte[] 36
@@ -98,7 +100,7 @@ if (Test-Path .env) {
 
     Write-Ok 'wrote .env'
     Write-Host "`n    ADMIN PASSWORD: $AdminPassword" -ForegroundColor Cyan
-    Write-Host '    Write this down — it is not stored anywhere in plain text.'
+    Write-Host '    Write this down -- it is not stored anywhere in plain text.'
 }
 
 # --- start -----------------------------------------------------------------
@@ -115,4 +117,4 @@ Write-Host '    Logs:  docker compose logs -f'
 Write-Host '    Stop:  docker compose down'
 Write-Host ''
 Write-Host '    Spotify search and playback stay off until you put real credentials'
-Write-Host '    in .env and restart. Audio needs a Linux box — see DEPLOY.md.'
+Write-Host '    in .env and restart. Audio needs a Linux box -- see DEPLOY.md.'
