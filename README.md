@@ -59,6 +59,22 @@ runs on its own:
 docker compose up -d --build     # app only, no librespot
 ```
 
+### Windows
+
+PowerShell 5.1 does not support `&&`, so run the clone and the script as two
+commands:
+
+```powershell
+git clone https://github.com/henryjess450/jukebox.git
+cd jukebox
+.\scripts\setup.ps1
+```
+
+**Windows runs the app, not the jukebox.** Docker Desktop's Linux VM has no
+access to the sound card, so librespot cannot play anything. The admin panel,
+guest page, search and the queue all work, and it is a fine way to look at the
+thing — but making noise needs a Linux host.
+
 ## Running it locally
 
 ```bash

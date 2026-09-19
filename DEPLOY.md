@@ -3,6 +3,12 @@
 There is no image to flash. You flash the **Ubuntu installer** to a USB stick,
 install Ubuntu once, then deploy this repository with Docker over SSH.
 
+**This box has to run Linux.** The audio path is librespot writing to ALSA,
+with `/dev/snd` passed into a container. Docker Desktop on Windows or macOS
+runs containers in a VM with no access to the sound card, so the jukebox can
+serve pages there but can never play a note. Windows is fine for looking at
+the app (`scripts/setup.ps1`); it is not a deployment target.
+
 ---
 
 ## 1. Get Ubuntu onto the box
