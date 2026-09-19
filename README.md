@@ -36,11 +36,27 @@ code, search, and put a track next in the queue.
 
 ## Deploying to the box
 
-See **[DEPLOY.md](DEPLOY.md)** — Ubuntu install, Docker, ALSA, and a table of
-exactly where every key and secret comes from.
+```bash
+git clone https://github.com/henryjess450/jukebox.git
+cd jukebox
+./scripts/setup.sh
+```
+
+`setup.sh` installs Docker if it is missing, generates the admin password and
+cookie secret, checks the sound card, writes `.env`, and starts the stack. It
+prints the admin password once — write it down. Re-running it is safe; an
+existing `.env` is never overwritten.
+
+Then put your Spotify client id and secret in `.env` and restart. See
+**[DEPLOY.md](DEPLOY.md)** for the Ubuntu install, the Spotify app
+registration (the redirect URI has rules that will bite you), Stripe keys,
+HTTPS, and ALSA troubleshooting.
+
+Without a sound card — a laptop, or the box before audio is wired up — the app
+runs on its own:
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build     # app only, no librespot
 ```
 
 ## Running it locally
