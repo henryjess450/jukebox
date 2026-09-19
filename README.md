@@ -67,8 +67,15 @@ commands:
 ```powershell
 git clone https://github.com/henryjess450/jukebox.git
 cd jukebox
-.\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 ```
+
+Windows blocks local scripts by default, so running `.\scripts\setup.ps1`
+directly fails with `UnauthorizedAccess`. The `-ExecutionPolicy Bypass` above
+applies to that one process only and changes nothing on the machine.
+
+Pass `-AdminPassword "your-password"` to choose your own instead of a
+generated one.
 
 **Windows runs the app, not the jukebox.** Docker Desktop's Linux VM has no
 access to the sound card, so librespot cannot play anything. The admin panel,

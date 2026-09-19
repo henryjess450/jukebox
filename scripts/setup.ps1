@@ -11,7 +11,13 @@
     box needs Linux — see DEPLOY.md.
 
 .EXAMPLE
-    .\scripts\setup.ps1
+    powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+
+    Windows blocks local scripts by default. The bypass applies to that one
+    process only and changes no machine setting.
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -AdminPassword "my-password"
 #>
 
 [CmdletBinding()]
