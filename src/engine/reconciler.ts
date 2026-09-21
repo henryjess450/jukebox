@@ -80,6 +80,35 @@ export const PUSH_TIMEOUT_MS = 10 * 60 * 1000;
  */
 export const IDLE_TICKS_BEFORE_ACTING = 2;
 
+/** Poll this often when a hand-off is imminent and timing matters. */
+export const ACTIVE_TICK_MS = 3_000;
+/** Poll this often otherwise. */
+export const IDLE_TICK_MS = 12_000;
+
+/**
+ * How long to wait before the next poll.
+ *
+ * Three seconds all evening is far more than Spotify's rate limit wants from a
+ * development-mode app, and it buys nothing while the fallback playlist runs
+ * unattended. The only moment precision matters is the seconds before a
+ * request has to be handed over; the rest of the time a slower poll notices
+ * everything just as well.
+ */
+export function nextPollDelayMs(input: ReconcileInput): number {
+  if (input.adminPaused) return IDLE_TICK_MS;
+
+  const pending = input.queue.filter((r) => r.pushed_at === null);
+  if (pending.length === 0) return IDLE_TICK_MS;
+
+  const remaining = input.playback ? remainingTrackMs(input.playback) : null;
+  if (remaining === null) return ACTIVE_TICK_MS;
+
+  // Tighten up as the hand-off window approaches, and not before.
+  const untilHandoff = remaining - input.settings.pushLeadMs;
+  if (untilHandoff <= ACTIVE_TICK_MS) return ACTIVE_TICK_MS;
+  return Math.min(IDLE_TICK_MS, Math.max(ACTIVE_TICK_MS, untilHandoff));
+}
+
 /** Case-insensitive match on the librespot `--name`. The device *id* changes
  *  every time librespot restarts, so the name is the only stable handle. */
 export function findDeviceByName(devices: SpotifyDevice[], name: string): SpotifyDevice | null {

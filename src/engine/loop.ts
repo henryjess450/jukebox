@@ -14,8 +14,14 @@ import { formatDuration } from '../spotify/types.js';
 import { SpotifyError } from '../spotify/errors.js';
 import type { SpotifyAuth } from '../spotify/auth.js';
 import { log } from '../log.js';
-import { reconcile, type Action, type ReconcileInput } from './reconciler.js';
+import {
+  nextPollDelayMs,
+  reconcile,
+  type Action,
+  type ReconcileInput,
+} from './reconciler.js';
 
+/** Only a starting point; the interval adapts — see `nextPollDelayMs`. */
 const TICK_MS = 3_000;
 /**
  * The device list barely changes, but fetching it every tick doubled the
@@ -47,6 +53,8 @@ export class PlaybackEngine {
   #consecutiveFailures = 0;
   /** Consecutive polls reporting dead air; see IDLE_TICKS_BEFORE_ACTING. */
   #idleTicks = 0;
+  /** What the last pass decided the next interval should be. */
+  #nextDelayMs = TICK_MS;
   /** Set while an operator has deliberately paused playback. */
   #adminPaused = false;
 
@@ -108,7 +116,7 @@ export class PlaybackEngine {
       running: this.#running,
       consecutiveFailures: this.#consecutiveFailures,
       backingOff,
-      tickMs: backingOff ? BACKOFF_TICK_MS : TICK_MS,
+      tickMs: backingOff ? BACKOFF_TICK_MS : this.#nextDelayMs,
       rateLimitedForMs: Math.max(0, this.#rateLimitedUntilMs - this.#now()),
     };
   }
@@ -156,7 +164,9 @@ export class PlaybackEngine {
           this.#schedule(rateLimitWait + 1_000);
           return;
         }
-        this.#schedule(this.#consecutiveFailures >= BACKOFF_AFTER_FAILURES ? BACKOFF_TICK_MS : TICK_MS);
+        this.#schedule(
+          this.#consecutiveFailures >= BACKOFF_AFTER_FAILURES ? BACKOFF_TICK_MS : this.#nextDelayMs,
+        );
       });
     }, delayMs);
     // Never hold the process open for a timer.
@@ -188,6 +198,7 @@ export class PlaybackEngine {
 
       const input = await this.#observe();
       const actions = reconcile(input);
+      this.#nextDelayMs = nextPollDelayMs(input);
       await this.#execute(actions);
       this.#consecutiveFailures = 0;
     } catch (err) {

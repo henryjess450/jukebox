@@ -6,8 +6,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  ACTIVE_TICK_MS,
+  IDLE_TICK_MS,
   PUSH_TIMEOUT_MS,
   findDeviceByName,
+  nextPollDelayMs,
   reconcile,
   remainingTrackMs,
   type Action,
@@ -503,5 +506,52 @@ describe('determinism', () => {
     ]) {
       assert.ok(reconcile(scenario).length > 0);
     }
+  });
+});
+
+describe('nextPollDelayMs', () => {
+  it('polls slowly while the fallback plays and nothing is queued', () => {
+    // Three seconds all evening is what exhausted the rate limit, and it buys
+    // nothing when there is no hand-off to be on time for.
+    assert.equal(nextPollDelayMs(input()), IDLE_TICK_MS);
+  });
+
+  it('still polls slowly when a request is a long way off', () => {
+    const actions = nextPollDelayMs(
+      input({ queue: [request()], playback: playing({ progressMs: 10_000 }) }),
+    );
+    assert.equal(actions, IDLE_TICK_MS);
+  });
+
+  it('tightens up as the hand-off approaches', () => {
+    // 300s track, 295s in, 15s lead: the hand-off is already due.
+    const delay = nextPollDelayMs(
+      input({ queue: [request()], playback: playing({ progressMs: 295_000 }) }),
+    );
+    assert.equal(delay, ACTIVE_TICK_MS);
+  });
+
+  it('never waits past the hand-off window', () => {
+    // 20s left, 15s lead: the hand-off is 5s away, so do not sleep 12s.
+    const delay = nextPollDelayMs(
+      input({ queue: [request()], playback: playing({ progressMs: 280_000 }) }),
+    );
+    assert.ok(delay <= 5_000, `would have missed the window: ${delay}ms`);
+  });
+
+  it('polls quickly when Spotify reports no progress', () => {
+    const delay = nextPollDelayMs(
+      input({ queue: [request()], playback: playing({ progressMs: null }) }),
+    );
+    assert.equal(delay, ACTIVE_TICK_MS);
+  });
+
+  it('idles while an operator has it paused', () => {
+    assert.equal(nextPollDelayMs(input({ adminPaused: true, queue: [request()] })), IDLE_TICK_MS);
+  });
+
+  it('ignores requests already handed over', () => {
+    const pushed = request({ pushed_at: new Date(NOW).toISOString() });
+    assert.equal(nextPollDelayMs(input({ queue: [pushed] })), IDLE_TICK_MS);
   });
 });
