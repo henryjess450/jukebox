@@ -38,6 +38,8 @@ export class PlaybackEngine {
   #consecutiveFailures = 0;
   /** Consecutive polls reporting dead air; see IDLE_TICKS_BEFORE_ACTING. */
   #idleTicks = 0;
+  /** Set while an operator has deliberately paused playback. */
+  #adminPaused = false;
 
   /** Remembers the last device id we saw, so a change is worth logging once. */
   #lastDeviceId: string | null = null;
@@ -84,6 +86,19 @@ export class PlaybackEngine {
       backingOff,
       tickMs: backingOff ? BACKOFF_TICK_MS : TICK_MS,
     };
+  }
+
+  /**
+   * Suspend or resume the engine's own intervention, for the admin pause
+   * button. While held, the reconciler is told to do nothing at all rather
+   * than resuming the player under the operator's feet.
+   */
+  holdPaused(paused: boolean): void {
+    this.#adminPaused = paused;
+    // Otherwise the ticks counted while paused would trigger an immediate
+    // takeover the moment the hold is released.
+    this.#idleTicks = 0;
+    log.info(paused ? 'engine held paused by admin' : 'engine released from admin pause');
   }
 
   start(): void {
@@ -175,6 +190,7 @@ export class PlaybackEngine {
     return {
       now,
       idleTicks: this.#idleTicks,
+      adminPaused: this.#adminPaused,
       playback,
       devices,
       queue: this.#deps.queue.listQueued(),

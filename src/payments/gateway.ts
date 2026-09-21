@@ -14,6 +14,9 @@ export interface CheckoutSessionInput {
   /** Smallest currency unit. Already validated against the Stripe minimum. */
   amountCents: number;
   currency: string;
+  /** What Stripe shows on the checkout page and the card statement. In
+   *  fundraising mode this leads with the cause, not the song. */
+  productName: string;
   trackName: string;
   artistName: string;
   albumArtUrl: string | null;
@@ -98,8 +101,8 @@ export class StripeGateway implements PaymentGateway {
             currency: input.currency.toLowerCase(),
             unit_amount: input.amountCents,
             product_data: {
-              name: input.trackName,
-              description: input.artistName,
+              name: input.productName,
+              description: `${input.trackName} — ${input.artistName}`,
               ...(input.albumArtUrl ? { images: [input.albumArtUrl] } : {}),
             },
           },

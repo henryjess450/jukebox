@@ -45,6 +45,12 @@ export interface ReconcileInput {
    * over needs the reading to persist.
    */
   idleTicks: number;
+  /**
+   * An operator pressed Pause. Without this the engine would notice the paused
+   * player two ticks later and helpfully resume it, making the button appear
+   * broken.
+   */
+  adminPaused: boolean;
   /** Null when Spotify reports nothing playing at all (a 204). */
   playback: PlayerSnapshot | null;
   devices: SpotifyDevice[];
@@ -86,6 +92,10 @@ export function reconcile(input: ReconcileInput): Action[] {
   const actions: Action[] = [];
 
   // --- 1. Is our speaker even there? ---------------------------------------
+
+  if (input.adminPaused) {
+    return [{ type: 'wait', reason: 'paused by an operator' }];
+  }
 
   if (settings.fallbackPlaylistUri === '') {
     return [{ type: 'wait', reason: 'no fallback playlist set — choose one in the admin panel' }];

@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { Settings } from '../src/config/settings.js';
+import { checkoutProductName, type Settings } from '../src/config/settings.js';
 import {
   priceFor,
   priceLabel,
@@ -37,7 +37,17 @@ function settings(over: Partial<Settings> = {}): Readonly<Settings> {
     block_duplicates: true,
     explicit_filter: false,
     max_track_duration_ms: 600_000,
+    fundraiser_enabled: false,
+    fundraiser_name: '',
+    fundraiser_blurb: '',
     venue_name: 'The Back Room',
+    venue_emoji: '',
+    header_image_url: '',
+    theme_accent: '#1db954',
+    theme_background: '#0e0f13',
+    theme_surface: '#181a21',
+    theme_text: '#f2f3f7',
+    queue_emoji: '',
     ...over,
   };
 }
@@ -335,5 +345,37 @@ describe('RateLimiter', () => {
     limiter.check('ip', 1, NOW);
     for (let i = 0; i < 5; i++) limiter.check('ip', 1, NOW + 1_000 * i);
     assert.equal(limiter.check('ip', 1, NOW + 60_001).allowed, true);
+  });
+});
+
+describe('checkoutProductName', () => {
+  it('is just the track when fundraising is off', () => {
+    assert.equal(checkoutProductName(settings(), 'Harvest Moon'), 'Harvest Moon');
+  });
+
+  it('leads with the cause when fundraising is on', () => {
+    const s = settings({ fundraiser_enabled: true, fundraiser_name: 'the Grade 8 trip' });
+    assert.equal(
+      checkoutProductName(s, 'Harvest Moon'),
+      'DONATION to the Grade 8 trip: Harvest Moon',
+    );
+  });
+
+  it('falls back to the track when no cause has been named', () => {
+    // Otherwise the guest would see "DONATION to : Harvest Moon".
+    const s = settings({ fundraiser_enabled: true, fundraiser_name: '   ' });
+    assert.equal(checkoutProductName(s, 'Harvest Moon'), 'Harvest Moon');
+  });
+
+  it('trims a long cause rather than letting the track fall off the end', () => {
+    const s = settings({ fundraiser_enabled: true, fundraiser_name: 'x'.repeat(200) });
+    const name = checkoutProductName(s, 'Harvest Moon');
+    assert.ok(name.endsWith('Harvest Moon'), 'the song must survive');
+    assert.ok(name.length < 100);
+  });
+
+  it('ignores the cause when fundraising is switched off', () => {
+    const s = settings({ fundraiser_enabled: false, fundraiser_name: 'the Grade 8 trip' });
+    assert.equal(checkoutProductName(s, 'Harvest Moon'), 'Harvest Moon');
   });
 });

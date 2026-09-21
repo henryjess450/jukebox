@@ -7,7 +7,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../../context.js';
-import { isPaidMode } from '../../config/settings.js';
+import { checkoutProductName, isPaidMode } from '../../config/settings.js';
 import { log } from '../../log.js';
 import { SpotifyError } from '../../spotify/errors.js';
 import { formatDuration } from '../../spotify/types.js';
@@ -86,9 +86,20 @@ export function registerGuestRoutes(app: FastifyInstance, ctx: AppContext): void
     return reply.type('text/html').send(
       guestPage({
         venueName: settings.venue_name,
+        venueEmoji: settings.venue_emoji,
+        queueEmoji: settings.queue_emoji,
+        headerImageUrl: settings.header_image_url,
         priceLabel: priceLabel(settings),
         isPaid: isPaidMode(settings),
         accepting: settings.accepting_requests,
+        fundraiserName: settings.fundraiser_enabled ? settings.fundraiser_name : '',
+        fundraiserBlurb: settings.fundraiser_enabled ? settings.fundraiser_blurb : '',
+        theme: {
+          accent: settings.theme_accent,
+          background: settings.theme_background,
+          surface: settings.theme_surface,
+          text: settings.theme_text,
+        },
         closedMessage: null,
       }),
     );
@@ -184,7 +195,11 @@ export function registerGuestRoutes(app: FastifyInstance, ctx: AppContext): void
       if (!row) return reply.status(500).send({ error: 'Something went wrong. Try again.' });
 
       try {
-        const checkout = await ctx.payments.startCheckout({ requestId: pendingId, row });
+        const checkout = await ctx.payments.startCheckout({
+          requestId: pendingId,
+          row,
+          productName: checkoutProductName(settings, track.name),
+        });
         return reply.send({ ok: true, checkoutUrl: checkout.url });
       } catch {
         // startCheckout already cancelled the row and logged the cause.

@@ -59,6 +59,7 @@ export function statusPage(view: StatusView): string {
         <h1>Jukebox admin</h1>
         <nav class="admin-nav">
           <a href="/admin">Settings</a>
+          <a href="/admin/queue">Queue</a>
           <a href="/status" class="is-current">Status</a>
           <form method="post" action="/admin/logout" class="inline">
             <input type="hidden" name="csrf" value="${csrf}" />

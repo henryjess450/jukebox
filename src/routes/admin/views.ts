@@ -1,4 +1,5 @@
 /** Admin page markup. */
+import { asset } from '../../http/assets.js';
 import { html, type SafeHtml } from '../../http/html.js';
 import { page, notice } from '../../http/layout.js';
 import {
@@ -71,6 +72,26 @@ function numberField(
   `;
 }
 
+function colourField(name: string, label: string, value: string, hint?: string): SafeHtml {
+  return html`
+    <div class="field field--colour">
+      <label for="${name}">${label}</label>
+      <div class="colour-row">
+        <input type="color" id="${name}_picker" value="${value}" data-colour-for="${name}" />
+        <input
+          id="${name}"
+          name="${name}"
+          type="text"
+          value="${value}"
+          spellcheck="false"
+          autocomplete="off"
+        />
+      </div>
+      ${hint ? html`<p class="hint">${hint}</p>` : ''}
+    </div>
+  `;
+}
+
 function textField(
   name: string,
   label: string,
@@ -125,11 +146,13 @@ export function settingsPage({
   return page({
     title: 'Settings — Jukebox admin',
     bodyClass: 'page-admin',
+    head: html`<script src="${asset('admin.js')}" defer></script>`,
     body: html`
       <header class="admin-header">
         <h1>Jukebox admin</h1>
         <nav class="admin-nav">
           <a href="/admin" class="is-current">Settings</a>
+          <a href="/admin/queue">Queue</a>
           <a href="/status">Status</a>
           <form method="post" action="/admin/logout" class="inline">
             <input type="hidden" name="csrf" value="${csrf}" />
@@ -251,11 +274,61 @@ export function settingsPage({
           </section>
 
           <section class="card">
-            <h2>Presentation</h2>
+            <h2>Fundraising</h2>
+            ${checkbox(
+              'fundraiser_enabled',
+              'Run this as a fundraiser',
+              settings.fundraiser_enabled,
+              'Presents every paid request as a donation, on the guest page and on the card statement.',
+            )}
+            ${textField('fundraiser_name', 'Raising money for', shown('fundraiser_name'), {
+              placeholder: 'e.g. the Grade 8 trip',
+              hint: 'Appears on the Stripe checkout as “DONATION to …: <song>”, so it is what shows on their statement.',
+              ...(errors['fundraiser_name'] ? { error: errors['fundraiser_name'] } : {}),
+            })}
+            ${textField('fundraiser_blurb', 'One-line explanation', shown('fundraiser_blurb'), {
+              placeholder: 'e.g. Every song pays for a seat on the bus.',
+              hint: 'Shown under the header on the guest page. Optional.',
+              ...(errors['fundraiser_blurb'] ? { error: errors['fundraiser_blurb'] } : {}),
+            })}
+            ${settings.fundraiser_enabled && settings.free_mode
+              ? notice('info', 'Free mode is on, so nobody is being charged and nothing is being raised.')
+              : ''}
+          </section>
+
+          <section class="card">
+            <h2>Look and feel</h2>
             ${textField('venue_name', 'Venue name', shown('venue_name'), {
               hint: 'Shown at the top of the guest page.',
               ...(errors['venue_name'] ? { error: errors['venue_name'] } : {}),
             })}
+            ${textField('venue_emoji', 'Emoji beside the name', shown('venue_emoji'), {
+              placeholder: '🎃',
+              hint: 'Optional. Paste one or two.',
+              ...(errors['venue_emoji'] ? { error: errors['venue_emoji'] } : {}),
+            })}
+            ${textField('queue_emoji', 'Emoji for the queue', shown('queue_emoji'), {
+              placeholder: '💀',
+              hint: 'Optional. Decorates the now-playing row.',
+              ...(errors['queue_emoji'] ? { error: errors['queue_emoji'] } : {}),
+            })}
+            ${textField('header_image_url', 'Header photo URL', shown('header_image_url'), {
+              placeholder: 'https://…/banner.jpg',
+              hint: 'Shown across the top of the guest page. Leave empty for just the name. Must be a public https URL — paste a link, not a file.',
+              ...(errors['header_image_url'] ? { error: errors['header_image_url'] } : {}),
+            })}
+
+            <div class="colour-grid">
+              ${colourField('theme_accent', 'Accent', settings.theme_accent, 'Buttons and highlights.')}
+              ${colourField('theme_background', 'Background', settings.theme_background)}
+              ${colourField('theme_surface', 'Cards', settings.theme_surface)}
+              ${colourField('theme_text', 'Text', settings.theme_text)}
+            </div>
+            ${errors['theme_accent'] ? html`<p class="hint hint--error">${errors['theme_accent']}</p>` : ''}
+            <p class="hint">
+              <a href="/" target="_blank" rel="noopener">Open the guest page</a> in another tab to see
+              changes — they apply as soon as you save.
+            </p>
           </section>
 
           <div class="form-actions">

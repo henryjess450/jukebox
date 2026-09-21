@@ -23,6 +23,25 @@ export type Currency = (typeof CURRENCIES)[number];
  * unreadable by apps created after November 2024, so the operator has to pick
  * one of their own.
  */
+/** A six-digit hex colour. Three-digit shorthand is rejected so the admin form
+ *  and the colour picker always agree on the value. */
+const hexColour = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'must be a hex colour like #1db954');
+
+/** An image URL, or empty for none. http(s) only — a data: URL here would be
+ *  megabytes of base64 in every page load. */
+const imageUrl = z.union([
+  z.literal(''),
+  z.string().url().refine((u) => /^https?:\/\//i.test(u), {
+    message: 'must start with http:// or https://',
+  }),
+]);
+
+/** Zero to a few emoji. Long enough for a flag or a ZWJ sequence, short enough
+ *  that nobody pastes a sentence into it. */
+const emoji = z.string().max(16);
+
 const spotifyPlaylistUri = z.union([
   z.literal(''),
   z
@@ -74,8 +93,33 @@ export const SETTING_DEFS = {
   explicit_filter: { schema: z.boolean(), default: false },
   max_track_duration_ms: { schema: z.number().int().min(30_000).max(3_600_000), default: 600_000 },
 
+  // --- fundraising ---------------------------------------------------------
+  /** When on, every paid request is presented as a donation. The Stripe line
+   *  item, the guest page and the confirmation all say so. */
+  fundraiser_enabled: { schema: z.boolean(), default: false },
+  /** Who the money is for. Appears on the guest page and on the card
+   *  statement line via the Checkout product name. */
+  fundraiser_name: { schema: z.string().max(80), default: '' },
+  /** One line under the header explaining the cause. Optional. */
+  fundraiser_blurb: { schema: z.string().max(200), default: '' },
+
   // --- presentation --------------------------------------------------------
   venue_name: { schema: z.string().min(1).max(60), default: 'Jukebox' },
+  /** Shown beside the venue name. */
+  venue_emoji: { schema: emoji, default: '' },
+  /** Replaces the plain heading with a photo when set. */
+  header_image_url: { schema: imageUrl, default: '' },
+  /** Buttons, highlights, the "requested" tag. */
+  theme_accent: { schema: hexColour, default: '#1db954' },
+  /** Page background. */
+  theme_background: { schema: hexColour, default: '#0e0f13' },
+  /** Cards and inputs sitting on the background. */
+  theme_surface: { schema: hexColour, default: '#181a21' },
+  /** Body text. Kept separate rather than derived, because an operator who
+   *  picks a pale background needs to be able to fix the text themselves. */
+  theme_text: { schema: hexColour, default: '#f2f3f7' },
+  /** Decorates the empty-queue message and the now-playing row. */
+  queue_emoji: { schema: emoji, default: '' },
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFS;
@@ -202,4 +246,23 @@ export function formatMoney(cents: number, currency: Currency): string {
 /** Whether a guest is charged right now — both switches must allow it. */
 export function isPaidMode(settings: Readonly<Settings>): boolean {
   return !settings.free_mode && settings.price_cents > 0;
+}
+
+/**
+ * The product name Stripe shows on the checkout page and the card statement.
+ *
+ * In fundraising mode the cause leads, because that is what the guest is
+ * being asked to support and what they will see on their statement weeks
+ * later. Stripe truncates long names, so the cause is trimmed before the
+ * track rather than letting the track fall off the end.
+ */
+export function checkoutProductName(
+  settings: Readonly<Settings>,
+  trackName: string,
+): string {
+  if (!settings.fundraiser_enabled || settings.fundraiser_name.trim() === '') {
+    return trackName;
+  }
+  const cause = settings.fundraiser_name.trim().slice(0, 60);
+  return `DONATION to ${cause}: ${trackName}`;
 }

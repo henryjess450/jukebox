@@ -11,9 +11,13 @@ import { registerAdminRoutes } from './routes/admin/index.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerGuestRoutes } from './routes/guest/index.js';
 import { registerPaymentRoutes } from './routes/payments.js';
+import { loadAssetVersions } from './http/assets.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(here, '..', 'public');
+
+/** Hashed into their URLs so a rebuild is picked up immediately. */
+const VERSIONED_ASSETS = ['app.css', 'guest.js', 'admin.js'];
 
 const STATIC_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -23,6 +27,15 @@ const STATIC_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
+/**
+ * A hashed URL names exactly one version of a file, so it can be cached
+ * forever. An unhashed one cannot, so it gets a few minutes at most.
+ */
+function cacheControl(nodeEnv: string, versioned: boolean): string {
+  if (nodeEnv !== 'production') return 'no-store';
+  return versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300';
+}
+
 export async function buildServer(ctx: AppContext): Promise<FastifyInstance> {
   const app = Fastify({
     // We emit our own JSON lines; Fastify's logger would duplicate them.
@@ -30,6 +43,8 @@ export async function buildServer(ctx: AppContext): Promise<FastifyInstance> {
     trustProxy: true,
     bodyLimit: 64 * 1024,
   });
+
+  loadAssetVersions(PUBLIC_DIR, VERSIONED_ASSETS);
 
   await app.register(cookie, { secret: ctx.env.COOKIE_SECRET });
   await app.register(formbody);
@@ -50,6 +65,9 @@ export async function buildServer(ctx: AppContext): Promise<FastifyInstance> {
   // Tiny static handler — a whole plugin is more than three files deserve.
   app.get<{ Params: { '*': string } }>('/static/*', async (req, reply) => {
     const requested = normalize(req.params['*']);
+    // Only a URL carrying a content hash may be cached forever; the same file
+    // requested without one might be any version.
+    const versioned = typeof (req.query as Record<string, unknown>)['v'] === 'string';
     if (requested.startsWith('..') || requested.includes('\0')) {
       return reply.status(400).send('bad path');
     }
@@ -61,7 +79,10 @@ export async function buildServer(ctx: AppContext): Promise<FastifyInstance> {
       const body = readFileSync(join(PUBLIC_DIR, requested));
       return reply
         .type(type)
-        .header('cache-control', ctx.env.NODE_ENV === 'production' ? 'public, max-age=3600' : 'no-store')
+        // Safe to cache hard because the URL carries a content hash; a
+        // changed file is a different URL. Without the hash this would pin
+        // guests to a stale stylesheet for an hour.
+        .header('cache-control', cacheControl(ctx.env.NODE_ENV, versioned))
         .send(body);
     } catch {
       return reply.status(404).send('not found');

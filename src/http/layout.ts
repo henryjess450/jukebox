@@ -1,4 +1,5 @@
 /** Shared page shell. Mobile-first; the stylesheet is served from /static. */
+import { asset } from './assets.js';
 import { html, type SafeHtml } from './html.js';
 
 export interface PageOptions {
@@ -17,7 +18,7 @@ ${html`<html lang="en">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark light" />
     <title>${title}</title>
-    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="${asset('app.css')}" />
     ${head ?? ''}
   </head>
   <body class="${bodyClass ?? ''}">

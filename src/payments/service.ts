@@ -65,6 +65,9 @@ export class PaymentService {
   async startCheckout(input: {
     requestId: number;
     row: RequestRow;
+    /** Built by `checkoutProductName`, so fundraising wording is decided in
+     *  one place rather than here. */
+    productName: string;
   }): Promise<{ url: string; sessionId: string }> {
     const { row } = input;
 
@@ -72,6 +75,7 @@ export class PaymentService {
       const session = await this.#gateway.createCheckoutSession({
         amountCents: row.amount_cents,
         currency: row.currency,
+        productName: input.productName,
         trackName: row.track_name,
         artistName: row.artist_name,
         albumArtUrl: row.album_art_url,

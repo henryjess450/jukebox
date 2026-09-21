@@ -142,6 +142,7 @@ describe('startCheckout', () => {
     const result = await serviceWith(fake).startCheckout({
       requestId: id,
       row: queue.byId(id)!,
+      productName: 'Harvest Moon',
     });
 
     assert.match(result.url, /^https:\/\/checkout\.stripe\.test\//);
@@ -150,13 +151,14 @@ describe('startCheckout', () => {
     assert.equal(input.amountCents, 200);
     assert.equal(input.currency, 'CAD');
     assert.equal(input.trackName, 'Harvest Moon');
+    assert.equal(input.productName, 'Harvest Moon');
     assert.equal(input.trackUri, 'spotify:track:t1');
   });
 
   it('points the return URL at our own confirmation route', async () => {
     const fake = fakeGateway();
     const id = pendingRequest();
-    await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)! });
+    await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
 
     const input = fake.created[0]!;
     assert.match(input.successUrl, /^https:\/\/jukebox\.example\.com\/return/);
@@ -167,14 +169,14 @@ describe('startCheckout', () => {
   it('records the session id against the request', async () => {
     const fake = fakeGateway();
     const id = pendingRequest();
-    const result = await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)! });
+    const result = await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
     assert.equal(queue.byId(id)?.stripe_session_id, result.sessionId);
   });
 
   it('gives the guest a deadline, so an abandoned checkout expires', async () => {
     const fake = fakeGateway();
     const id = pendingRequest();
-    await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)! });
+    await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
     assert.ok(fake.created[0]!.expiresAt > Math.floor(Date.now() / 1000));
   });
 
@@ -183,7 +185,7 @@ describe('startCheckout', () => {
     const id = pendingRequest();
 
     await assert.rejects(() =>
-      serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)! }),
+      serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' }),
     );
     // Otherwise the row sits in pending_payment and eats the guest's allowance.
     assert.equal(queue.byId(id)?.state, 'cancelled');
@@ -192,7 +194,7 @@ describe('startCheckout', () => {
   it('never queues anything before payment', async () => {
     const fake = fakeGateway();
     const id = pendingRequest();
-    await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)! });
+    await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
     assert.equal(queue.listQueued().length, 0);
     assert.equal(queue.byId(id)?.state, 'pending_payment');
   });
@@ -201,7 +203,7 @@ describe('startCheckout', () => {
 describe('confirmSession', () => {
   async function started(fake: ReturnType<typeof fakeGateway>): Promise<{ id: number; sessionId: string }> {
     const id = pendingRequest();
-    const result = await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)! });
+    const result = await serviceWith(fake).startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
     return { id, sessionId: result.sessionId };
   }
 
@@ -295,7 +297,7 @@ describe('confirmSession', () => {
     let published = 0;
     const service = serviceWith(fake, () => published++);
     const id = pendingRequest();
-    const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)! });
+    const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
 
     await service.confirmSession(sessionId);
     await service.confirmSession(sessionId);
@@ -324,7 +326,7 @@ describe('refunds', () => {
   async function paidThenFailed(fake: ReturnType<typeof fakeGateway>): Promise<number> {
     const id = pendingRequest();
     const service = serviceWith(fake);
-    const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)! });
+    const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
     await service.confirmSession(sessionId);
     queue.markFailed(id, 'handed to Spotify but never started playing');
     return id;
@@ -413,7 +415,7 @@ describe('refunds', () => {
       const fake = fakeGateway();
       const id = pendingRequest();
       const service = serviceWith(fake);
-      const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)! });
+      const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
       await service.confirmSession(sessionId);
       queue.markPlaying(id);
       queue.markPlayed(id);
@@ -433,7 +435,7 @@ describe('refunds', () => {
       const fake = fakeGateway();
       const id = pendingRequest();
       const service = serviceWith(fake);
-      const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)! });
+      const { sessionId } = await service.startCheckout({ requestId: id, row: queue.byId(id)!, productName: 'Harvest Moon' });
       await service.confirmSession(sessionId);
       queue.cancel(id, 'removed by admin');
 

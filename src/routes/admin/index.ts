@@ -16,6 +16,7 @@ import {
 } from './auth.js';
 import { loginPage, settingsPage } from './views.js';
 import { registerSpotifyRoutes, type AdminGuard } from './spotify.js';
+import { registerQueueRoutes } from './queue.js';
 
 const LoginBody = z.object({ password: z.string().min(1).max(200) });
 
@@ -46,7 +47,21 @@ export function parseSettingsForm(body: Record<string, unknown>): Partial<Record
     patch[key] = Number.isNaN(n) ? raw : n;
   }
 
-  for (const key of ['fallback_playlist_uri', 'device_name', 'market', 'venue_name'] as const) {
+  for (const key of [
+    'fallback_playlist_uri',
+    'device_name',
+    'market',
+    'venue_name',
+    'venue_emoji',
+    'queue_emoji',
+    'header_image_url',
+    'fundraiser_name',
+    'fundraiser_blurb',
+    'theme_accent',
+    'theme_background',
+    'theme_surface',
+    'theme_text',
+  ] as const) {
     const raw = body[key];
     if (typeof raw === 'string') patch[key] = raw.trim();
   }
@@ -175,4 +190,5 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext): void
   });
 
   registerSpotifyRoutes(app, ctx, guard);
+  registerQueueRoutes(app, ctx, guard);
 }

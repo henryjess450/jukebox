@@ -55,6 +55,11 @@
     return img;
   }
 
+  /** The queue's emoji, if the operator set one. */
+  function queueEmoji() {
+    return config.queueEmoji ? config.queueEmoji + ' ' : '';
+  }
+
   // --- search ---------------------------------------------------------------
 
   function runSearch(query) {
@@ -87,27 +92,30 @@
       });
   }
 
+  /**
+   * Results as record sleeves: a grid of album art with the title underneath.
+   * Two columns on a phone, four on anything wider — the stylesheet decides,
+   * so this only has to build the tiles.
+   */
   function renderResults(tracks) {
     els.results.textContent = '';
     tracks.forEach(function (track) {
-      var button = el('button', 'result');
+      var button = el('button', 'tile');
       button.type = 'button';
-      button.appendChild(artwork(track.albumArtUrl, 48));
 
-      var body = el('span', 'result__body');
-      body.appendChild(el('span', 'result__name', track.name));
-      var meta = el('span', 'result__meta', track.artist + ' · ' + track.duration);
-      if (track.explicit) {
-        meta.appendChild(text(' '));
-        meta.appendChild(el('span', 'tag', 'E'));
-      }
-      body.appendChild(meta);
-      button.appendChild(body);
+      var sleeve = el('span', 'tile__sleeve');
+      sleeve.appendChild(artwork(track.albumArtUrl, 300));
+      if (track.explicit) sleeve.appendChild(el('span', 'tile__explicit', 'E'));
+      sleeve.appendChild(el('span', 'tile__duration', track.duration));
+      button.appendChild(sleeve);
+
+      button.appendChild(el('span', 'tile__name', track.name));
+      button.appendChild(el('span', 'tile__artist', track.artist));
 
       button.addEventListener('click', function () {
         openSheet(track);
       });
-      els.results.appendChild(el('li', null, button));
+      els.results.appendChild(el('li', 'tile-cell', button));
     });
   }
 
@@ -137,7 +145,11 @@
     els.sheetError.hidden = true;
     els.sheetError.textContent = '';
     els.confirm.disabled = false;
-    els.confirm.textContent = config.isPaid ? 'Pay and play' : 'Yes, play it';
+    els.confirm.textContent = config.isPaid
+      ? config.fundraiserName
+        ? 'Donate and play'
+        : 'Pay and play'
+      : 'Yes, play it';
 
     els.sheetTrack.textContent = '';
     els.sheetTrack.appendChild(artwork(track.albumArtUrl, 64));
@@ -198,7 +210,11 @@
         submitting = false;
         if (!result.ok) {
           els.confirm.disabled = false;
-          els.confirm.textContent = config.isPaid ? 'Pay and play' : 'Yes, play it';
+          els.confirm.textContent = config.isPaid
+      ? config.fundraiserName
+        ? 'Donate and play'
+        : 'Pay and play'
+      : 'Yes, play it';
           els.sheetError.textContent = result.body.error || 'That did not work. Try again.';
           els.sheetError.hidden = false;
           return;
@@ -216,7 +232,11 @@
       .catch(function () {
         submitting = false;
         els.confirm.disabled = false;
-        els.confirm.textContent = config.isPaid ? 'Pay and play' : 'Yes, play it';
+        els.confirm.textContent = config.isPaid
+      ? config.fundraiserName
+        ? 'Donate and play'
+        : 'Pay and play'
+      : 'Yes, play it';
         els.sheetError.textContent = 'Could not send that. Check your connection.';
         els.sheetError.hidden = false;
       });
@@ -251,7 +271,7 @@
 
     els.nowPlaying.textContent = '';
     if (!snapshot.nowPlaying) {
-      els.nowPlaying.appendChild(el('p', 'hint', 'Nothing playing.'));
+      els.nowPlaying.appendChild(el('p', 'hint', queueEmoji() + 'Nothing playing.'));
     } else {
       var row = el('div', 'now-row');
       row.appendChild(artwork(snapshot.nowPlaying.albumArtUrl, 56));

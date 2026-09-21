@@ -103,6 +103,7 @@ function input(over: Partial<ReconcileInput> = {}): ReconcileInput {
     now: NOW,
     // Most scenarios describe a settled player; the debounce is tested on its own.
     idleTicks: 99,
+    adminPaused: false,
     playback: playing(),
     devices: [ourDevice],
     queue: [],
@@ -182,6 +183,15 @@ describe('dead air', () => {
   it('starts the fallback when the player is stopped with nothing loaded', () => {
     const actions = reconcile(input({ playback: playing({ isPlaying: false, track: null }) }));
     assert.ok(find(actions, 'start_fallback'));
+  });
+
+  it('does nothing at all while an operator has paused it', () => {
+    // The pause button would look broken if the engine resumed two ticks later.
+    for (const playback of [null, playing({ isPlaying: false }), playing()]) {
+      const actions = reconcile(input({ playback, adminPaused: true, queue: [request()] }));
+      assert.deepEqual(types(actions), ['wait']);
+      assert.match(find(actions, 'wait')!.reason, /operator/);
+    }
   });
 
   it('waits out a single dead-air reading rather than taking over', () => {
