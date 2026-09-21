@@ -36,6 +36,8 @@ export class PlaybackEngine {
   #running = false;
   #ticking = false;
   #consecutiveFailures = 0;
+  /** Consecutive polls reporting dead air; see IDLE_TICKS_BEFORE_ACTING. */
+  #idleTicks = 0;
 
   /** Remembers the last device id we saw, so a change is worth logging once. */
   #lastDeviceId: string | null = null;
@@ -156,6 +158,10 @@ export class PlaybackEngine {
       this.#deps.spotify.getDevices(),
     ]);
 
+    // Dead air is nothing playing, or playing nothing identifiable, or paused.
+    const idle = playback === null || playback.track === null || !playback.isPlaying;
+    this.#idleTicks = idle ? this.#idleTicks + 1 : 0;
+
     this.#lastTrack = playback?.track
       ? {
           name: playback.track.name,
@@ -168,6 +174,7 @@ export class PlaybackEngine {
 
     return {
       now,
+      idleTicks: this.#idleTicks,
       playback,
       devices,
       queue: this.#deps.queue.listQueued(),

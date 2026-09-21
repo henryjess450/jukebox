@@ -167,7 +167,12 @@ describe('engine tick', () => {
 
   it('starts the fallback playlist when nothing is playing', async () => {
     const spy = spyClient({ playback: null });
-    await engineWith(spy).tick();
+    const engine = engineWith(spy);
+    // One reading of dead air is not enough: Spotify reports paused or 204
+    // between tracks. The engine waits for it to persist.
+    await engine.tick();
+    assert.equal(spy.find('playContext'), undefined, 'must not act on a single reading');
+    await engine.tick();
 
     const play = spy.find('playContext');
     assert.equal(play?.args[0], FALLBACK);
@@ -342,7 +347,9 @@ describe('failure handling', () => {
         setRepeat: new SpotifyError('server', 'boom'),
       },
     });
-    await engineWith(spy).tick(); // must not throw
+    const engine = engineWith(spy);
+    await engine.tick();
+    await engine.tick(); // must not throw
     assert.equal(spy.find('playContext')?.args[0], FALLBACK);
   });
 
@@ -404,6 +411,7 @@ describe('failure handling', () => {
 
     delete failures['getPlaybackState']; // Spotify comes back
     await engine.tick();
+    await engine.tick(); // dead air must persist before it takes over
 
     assert.equal(engine.stats().consecutiveFailures, 0);
     assert.equal(engine.stats().backingOff, false);

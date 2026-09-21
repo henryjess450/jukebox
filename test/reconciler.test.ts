@@ -101,6 +101,8 @@ function request(over: Partial<RequestRow> = {}): RequestRow {
 function input(over: Partial<ReconcileInput> = {}): ReconcileInput {
   return {
     now: NOW,
+    // Most scenarios describe a settled player; the debounce is tested on its own.
+    idleTicks: 99,
     playback: playing(),
     devices: [ourDevice],
     queue: [],
@@ -180,6 +182,23 @@ describe('dead air', () => {
   it('starts the fallback when the player is stopped with nothing loaded', () => {
     const actions = reconcile(input({ playback: playing({ isPlaying: false, track: null }) }));
     assert.ok(find(actions, 'start_fallback'));
+  });
+
+  it('waits out a single dead-air reading rather than taking over', () => {
+    // Spotify reports paused or 204 between tracks while the player is fine.
+    const actions = reconcile(input({ playback: null, idleTicks: 1 }));
+    assert.deepEqual(types(actions), ['wait']);
+  });
+
+  it('takes over once dead air persists', () => {
+    const actions = reconcile(input({ playback: null, idleTicks: 2 }));
+    assert.ok(find(actions, 'start_fallback'));
+  });
+
+  it('waits out a single paused reading', () => {
+    const actions = reconcile(input({ playback: playing({ isPlaying: false }), idleTicks: 1 }));
+    assert.deepEqual(types(actions), ['wait']);
+    assert.equal(find(actions, 'resume'), undefined);
   });
 
   it('leaves alone something playing that it cannot identify', () => {

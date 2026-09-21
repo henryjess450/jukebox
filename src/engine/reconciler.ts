@@ -34,6 +34,17 @@ export type Action =
 export interface ReconcileInput {
   /** Milliseconds since the epoch. Passed in so tests control time. */
   now: number;
+  /**
+   * How many consecutive polls have now reported dead air — nothing playing,
+   * or paused.
+   *
+   * Spotify's state lags reality: between tracks, and for a second or two
+   * after a command, the API reports paused or returns 204 while the player
+   * is in fact fine. Acting on a single reading makes the engine fight the
+   * player, which is audible as the music restarting for no reason. Taking
+   * over needs the reading to persist.
+   */
+  idleTicks: number;
   /** Null when Spotify reports nothing playing at all (a 204). */
   playback: PlayerSnapshot | null;
   devices: SpotifyDevice[];
@@ -55,6 +66,13 @@ export interface ReconcileInput {
  * and let the queue move on rather than blocking it forever.
  */
 export const PUSH_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Consecutive dead-air readings before the engine intervenes. Two is enough
+ * to ride out a transition at a three-second tick, and still recovers real
+ * silence within about six seconds.
+ */
+export const IDLE_TICKS_BEFORE_ACTING = 2;
 
 /** Case-insensitive match on the librespot `--name`. The device *id* changes
  *  every time librespot restarts, so the name is the only stable handle. */
@@ -125,6 +143,9 @@ export function reconcile(input: ReconcileInput): Action[] {
   );
 
   if (playback === null) {
+    if (input.idleTicks < IDLE_TICKS_BEFORE_ACTING) {
+      return [{ type: 'wait', reason: 'player reports nothing playing; waiting to be sure' }];
+    }
     // Dead air. Start the fallback; a pending request will be inserted on the
     // next pass, once there is something to insert it ahead of.
     actions.push({
@@ -147,6 +168,9 @@ export function reconcile(input: ReconcileInput): Action[] {
     if (playback.isPlaying) {
       return [{ type: 'wait', reason: 'playing something we cannot identify; leaving it alone' }];
     }
+    if (input.idleTicks < IDLE_TICKS_BEFORE_ACTING) {
+      return [{ type: 'wait', reason: 'no track loaded; waiting to be sure' }];
+    }
     actions.push({
       type: 'start_fallback',
       deviceId,
@@ -164,6 +188,9 @@ export function reconcile(input: ReconcileInput): Action[] {
   }
 
   if (!playback.isPlaying) {
+    if (input.idleTicks < IDLE_TICKS_BEFORE_ACTING) {
+      return [{ type: 'wait', reason: 'player reports paused; waiting to be sure' }];
+    }
     if (stillPending.length > 0 || playback.track !== null) {
       actions.push({ type: 'resume', deviceId, reason: 'player is paused' });
     } else {
