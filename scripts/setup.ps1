@@ -114,7 +114,17 @@ if ($writeEnv) {
     Step 'Network'
     $reachable = AskYesNo 'Should phones on this network be able to reach it?' $true
     $bindHost = if ($reachable) { '0.0.0.0' } else { '127.0.0.1' }
-    $port = Ask 'Port to run on' '4321'
+    # 'y' ended up in here once, answered to the previous yes/no question, and
+    # Compose then failed with an unhelpful 'invalid containerPort: y'.
+    $port = ''
+    while ($port -eq '') {
+        $answer = Ask 'Port to run on (a number)' '4321'
+        if ($answer -match '^\d+$' -and [int]$answer -ge 1 -and [int]$answer -le 65535) {
+            $port = $answer
+        } else {
+            Warn "'$answer' is not a port number. Enter something between 1 and 65535, or press Enter for 4321."
+        }
+    }
 
     Step 'Writing configuration'
     $bytes = New-Object byte[] 36
@@ -122,9 +132,33 @@ if ($writeEnv) {
     $cookieSecret = [Convert]::ToBase64String($bytes)
 
     Ok 'Hashing the admin password (this pulls a small image the first time)'
-    $node = "npm i -s bcryptjs >/dev/null 2>&1 && node -e `"console.log(require('bcryptjs').hashSync(process.argv[1],12))`" '$adminPassword'"
-    $adminHash = (docker run --rm node:20-slim sh -c $node) | Select-Object -Last 1
-    if ($adminHash -notmatch '^\$2[aby]\$\d{2}\$') { Fail "Could not hash the password. Got: $adminHash"; exit 1 }
+
+    # Everything below is base64 so that nothing with a quote in it is ever
+    # passed to a native command. Windows PowerShell does not escape embedded
+    # double quotes when calling one, which silently corrupted the command and
+    # produced 'sh: Syntax error: "(" unexpected'.
+    $js = @'
+const pw = Buffer.from(process.env.PWB64, 'base64').toString('utf8');
+console.log(require('bcryptjs').hashSync(pw, 12));
+'@
+    $jsB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($js))
+    $pwB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($adminPassword))
+
+    # No quotes anywhere in this string, so there is nothing to mangle.
+    # Install and run in the same directory: installing at / leaves the module
+    # somewhere node will not resolve from, and it fails with MODULE_NOT_FOUND.
+    $shell = 'cd /tmp && echo ' + $jsB64 + ' | base64 -d > h.js && npm i -s bcryptjs >/dev/null 2>&1 && node h.js'
+
+    $output = docker run --rm -e PWB64=$pwB64 node:20-slim sh -c $shell 2>&1
+    $adminHash = ($output | Where-Object { $_ -match '^\$2[aby]\$\d{2}\$' } | Select-Object -Last 1)
+
+    if (-not $adminHash) {
+        Fail 'Could not hash the admin password. Docker said:'
+        $output | ForEach-Object { Write-Host "      $_" }
+        Fail 'Nothing was written. Fix the above and run setup.bat again.'
+        exit 1
+    }
+    Ok 'Password hashed'
 
     $content = Get-Content .env.example -Raw
 
@@ -156,6 +190,7 @@ if (Test-Path $envPath) {
 }
 
 Step 'Starting'
+Ok "port $port, reachable from $(if ($bindHost -eq '0.0.0.0') { 'anywhere on this network' } else { 'this machine only' })"
 $composeArgs = @('compose', '-f', 'docker-compose.yml')
 if (AskYesNo 'Also serve on port 80, so the address needs no port number?' $false) {
     $composeArgs += @('-f', 'docker-compose.port80.yml')
@@ -165,7 +200,8 @@ $composeArgs += @('up', '-d', '--build')
 & docker @composeArgs
 if ($LASTEXITCODE -ne 0) {
     Fail 'Docker could not start the stack. The error above says why.'
-    Fail 'If it mentions port 80 being in use, run this again and answer no to the port 80 question.'
+    Fail 'If it mentions port 80 being in use, run setup.bat again and answer no to the port 80 question.'
+    Fail 'If it mentions an invalid port, your .env has a bad PORT value -- re-run and re-enter the keys.'
     exit 1
 }
 
