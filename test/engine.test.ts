@@ -429,6 +429,47 @@ describe('failure handling', () => {
   });
 });
 
+describe('rate limiting', () => {
+  it('stops calling Spotify entirely once it is rate limited', async () => {
+    const limited = new SpotifyError('rate_limited', 'slow down', { retryAfterMs: 90_000 });
+    const spy = spyClient({ failures: { getPlaybackState: limited } });
+    const engine = engineWith(spy);
+
+    await engine.tick();
+    const callsAfterFirst = spy.calls.length;
+
+    await engine.tick();
+    await engine.tick();
+    await engine.tick();
+
+    assert.equal(
+      spy.calls.length,
+      callsAfterFirst,
+      'knocking again is what turns a short penalty into a long one',
+    );
+  });
+
+  it('reports how long it is sitting out', async () => {
+    const limited = new SpotifyError('rate_limited', 'slow down', { retryAfterMs: 120_000 });
+    const spy = spyClient({ failures: { getPlaybackState: limited } });
+    const engine = engineWith(spy);
+
+    await engine.tick();
+
+    const stats = engine.stats();
+    assert.ok(stats.rateLimitedForMs > 100_000, 'so the status page can say why');
+  });
+
+  it('waits at least a minute even when Spotify does not say how long', async () => {
+    const limited = new SpotifyError('rate_limited', 'slow down');
+    const spy = spyClient({ failures: { getPlaybackState: limited } });
+    const engine = engineWith(spy);
+
+    await engine.tick();
+    assert.ok(engine.stats().rateLimitedForMs >= 59_000);
+  });
+});
+
 describe('call rate', () => {
   it('does not re-read the device list on every tick', async () => {
     // Two calls per three-second tick was enough, with a second instance

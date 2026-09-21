@@ -143,6 +143,19 @@ export function registerSpotifyRoutes(
       justConnected: query['connected'] === '1',
     };
 
+    // While Spotify is rate limiting us the engine deliberately makes no
+    // calls; this page must not make them either, or it would keep the
+    // penalty alive by itself.
+    const engineStats = ctx.engine.stats();
+    if (engineStats.rateLimitedForMs > 0) {
+      view.errors.push(
+        `Spotify is rate limiting this account. Nothing is being sent to it for another ${Math.ceil(
+          engineStats.rateLimitedForMs / 1000,
+        )} seconds. This clears on its own — the usual cause is two copies of the jukebox running against one Spotify account.`,
+      );
+      return reply.type('text/html').send(statusPage(view));
+    }
+
     if (auth.connected) {
       // Run the four lookups together; collect failures rather than throwing.
       const [devices, playback, playlist, account] = await Promise.allSettled([

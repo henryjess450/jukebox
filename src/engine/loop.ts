@@ -52,6 +52,13 @@ export class PlaybackEngine {
 
   #deviceCache: { devices: SpotifyDevice[]; at: number } | null = null;
 
+  /**
+   * When Spotify says it is rate limiting us, it also says for how long. Until
+   * then the engine makes no calls at all: continuing to knock is what turns a
+   * short penalty into a long one.
+   */
+  #rateLimitedUntilMs = 0;
+
   /** Remembers the last device id we saw, so a change is worth logging once. */
   #lastDeviceId: string | null = null;
 
@@ -89,14 +96,25 @@ export class PlaybackEngine {
     return this.#lastTrack;
   }
 
-  stats(): { running: boolean; consecutiveFailures: number; backingOff: boolean; tickMs: number } {
+  stats(): {
+    running: boolean;
+    consecutiveFailures: number;
+    backingOff: boolean;
+    tickMs: number;
+    rateLimitedForMs: number;
+  } {
     const backingOff = this.#consecutiveFailures >= BACKOFF_AFTER_FAILURES;
     return {
       running: this.#running,
       consecutiveFailures: this.#consecutiveFailures,
       backingOff,
       tickMs: backingOff ? BACKOFF_TICK_MS : TICK_MS,
+      rateLimitedForMs: Math.max(0, this.#rateLimitedUntilMs - this.#now()),
     };
+  }
+
+  #now(): number {
+    return this.#deps.now?.() ?? Date.now();
   }
 
   /**
@@ -132,6 +150,12 @@ export class PlaybackEngine {
     if (!this.#running) return;
     this.#timer = setTimeout(() => {
       void this.tick().finally(() => {
+        const rateLimitWait = this.#rateLimitedUntilMs - this.#now();
+        if (rateLimitWait > 0) {
+          // Wake once when the penalty expires rather than ticking through it.
+          this.#schedule(rateLimitWait + 1_000);
+          return;
+        }
         this.#schedule(this.#consecutiveFailures >= BACKOFF_AFTER_FAILURES ? BACKOFF_TICK_MS : TICK_MS);
       });
     }, delayMs);
@@ -148,6 +172,14 @@ export class PlaybackEngine {
     this.#ticking = true;
 
     try {
+      const waitMs = this.#rateLimitedUntilMs - this.#now();
+      if (waitMs > 0) {
+        // Making the call anyway would earn another 429 and, on Spotify, a
+        // longer penalty. Sit it out in silence.
+        log.debug('rate limited; skipping tick', { wait_s: Math.ceil(waitMs / 1000) });
+        return;
+      }
+
       if (!this.#deps.auth.isConnected()) {
         // Not an error: the box may simply not be set up yet.
         this.#consecutiveFailures = 0;
@@ -160,6 +192,19 @@ export class PlaybackEngine {
       this.#consecutiveFailures = 0;
     } catch (err) {
       this.#consecutiveFailures++;
+
+      if (err instanceof SpotifyError && err.code === 'rate_limited') {
+        // Spotify's Retry-After is authoritative; a minute is a floor for the
+        // case where it did not say.
+        const waitMs = Math.max(err.retryAfterMs ?? 60_000, 60_000);
+        this.#rateLimitedUntilMs = this.#now() + waitMs;
+        log.warn('rate limited by Spotify; pausing all calls', {
+          wait_s: Math.ceil(waitMs / 1000),
+          resumes_at: new Date(this.#rateLimitedUntilMs).toISOString(),
+        });
+        return;
+      }
+
       const fields =
         err instanceof SpotifyError
           ? err.toLogFields()
