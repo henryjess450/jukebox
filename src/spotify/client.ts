@@ -23,6 +23,14 @@ import {
   type UserProfile,
 } from './types.js';
 
+/**
+ * Spotify rejects a search `limit` above 10 with "Invalid limit", despite the
+ * documentation saying 50. Apps created after the November 2024 changes are
+ * capped at 10, and omitting the parameter defaults to 5. Verified against the
+ * live API — going over this breaks search completely, not partially.
+ */
+export const SEARCH_LIMIT_MAX = 10;
+
 /** A guest is waiting on a search, so it gets a tight budget and no long 429 wait. */
 const INTERACTIVE: RequestOptions = { timeoutMs: 5_000, maxAttempts: 2, maxRetryAfterMs: 2_000 };
 /** The poll loop can afford to be patient; nobody is watching a spinner. */
@@ -46,13 +54,15 @@ export class SpotifyClient {
 
   // --- reads ----------------------------------------------------------------
 
-  async search(query: string, market: string, limit = 20): Promise<Track[]> {
+  async search(query: string, market: string, limit = SEARCH_LIMIT_MAX): Promise<Track[]> {
     const trimmed = query.trim();
     if (trimmed === '') return [];
 
     const body = await this.#http.request<unknown>('/search', {
       ...INTERACTIVE,
-      query: { q: trimmed, type: 'track', market, limit },
+      // Clamped rather than trusted: a caller asking for more gets fewer
+      // results, not a 400 that looks like the search is broken.
+      query: { q: trimmed, type: 'track', market, limit: Math.min(limit, SEARCH_LIMIT_MAX) },
     });
 
     const parsed = this.#parse(SearchResponseSchema, body, '/search');
@@ -113,13 +123,21 @@ export class SpotifyClient {
     };
   }
 
-  async getPlaylist(playlistId: string): Promise<{ id: string; name: string; trackCount: number }> {
+  /**
+   * Confirm the fallback playlist exists and get its name.
+   *
+   * No track count: the current API returns neither `tracks.total` on the
+   * playlist nor an accessible `/playlists/{id}/tracks` endpoint (403 for
+   * apps in development mode), whatever the documentation says. We only need
+   * to know the playlist is readable, which a 200 here establishes.
+   */
+  async getPlaylist(playlistId: string): Promise<{ id: string; name: string }> {
     const body = await this.#http.request<unknown>(`/playlists/${encodeURIComponent(playlistId)}`, {
       ...BACKGROUND,
-      query: { fields: 'id,uri,name,tracks(total),owner(display_name)' },
+      query: { fields: 'id,uri,name,owner(display_name)' },
     });
     const parsed = this.#parse(PlaylistSchema, body, '/playlists');
-    return { id: parsed.id, name: parsed.name, trackCount: parsed.tracks.total };
+    return { id: parsed.id, name: parsed.name };
   }
 
   async getCurrentUser(): Promise<UserProfile> {
@@ -149,9 +167,12 @@ export class SpotifyClient {
   }
 
   /**
-   * Start a context (our fallback playlist). `offset` picks a starting track;
-   * omitted, Spotify starts at the top, which would make the same song open
-   * every evening — the reconciler passes a random offset instead.
+   * Start a context (our fallback playlist).
+   *
+   * `offset` is accepted but the engine no longer uses it: the API gives us no
+   * way to learn how many tracks a playlist has, so there is no safe upper
+   * bound for a random position. Shuffle achieves the same thing — a different
+   * song every evening — without needing a count.
    */
   async playContext(contextUri: string, deviceId?: string, offsetPosition?: number): Promise<void> {
     await this.#http.request('/me/player/play', {

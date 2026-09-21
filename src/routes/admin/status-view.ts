@@ -13,7 +13,7 @@ export interface StatusView {
   devices: SpotifyDevice[] | null;
   matchedDevice: SpotifyDevice | null;
   playback: PlayerSnapshot | null;
-  playlist: { id: string; name: string; trackCount: number } | null;
+  playlist: { id: string; name: string } | null;
   account: UserProfile | null;
   errors: string[];
   flashError?: string;
@@ -127,8 +127,10 @@ export function statusPage(view: StatusView): string {
                     playlist !== null,
                     'Fallback playlist',
                     playlist
-                      ? html`<strong>${playlist.name}</strong> — ${String(playlist.trackCount)} tracks`
-                      : 'could not read the configured playlist',
+                      ? html`<strong>${playlist.name}</strong>`
+                      : html`not set, or not readable. It must be a playlist your own account
+                          owns or follows — Spotify no longer lets apps read its editorial
+                          playlists such as Today&rsquo;s Top Hits.`,
                   )}
                 </ul>
               </section>

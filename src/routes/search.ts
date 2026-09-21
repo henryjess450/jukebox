@@ -11,11 +11,13 @@ import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { log } from '../log.js';
 import { SpotifyError } from '../spotify/errors.js';
+import { SEARCH_LIMIT_MAX } from '../spotify/client.js';
 import { formatDuration, type Track } from '../spotify/types.js';
 
 const SearchQuery = z.object({
   q: z.string().min(1).max(120),
-  limit: z.coerce.number().int().min(1).max(30).optional(),
+  // Spotify rejects anything above 10 outright; see SEARCH_LIMIT_MAX.
+  limit: z.coerce.number().int().min(1).max(SEARCH_LIMIT_MAX).optional(),
 });
 
 export interface SearchResultDto {
@@ -79,7 +81,11 @@ export function registerSearchRoutes(app: FastifyInstance, ctx: AppContext): voi
     const settings = ctx.settings.all();
 
     try {
-      const tracks = await ctx.spotify.search(parsed.data.q, settings.market, parsed.data.limit ?? 20);
+      const tracks = await ctx.spotify.search(
+        parsed.data.q,
+        settings.market,
+        parsed.data.limit ?? SEARCH_LIMIT_MAX,
+      );
       const filtered = applySearchFilters(tracks, {
         explicitFilter: settings.explicit_filter,
         maxDurationMs: settings.max_track_duration_ms,

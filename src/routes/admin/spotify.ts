@@ -176,7 +176,10 @@ export function registerSpotifyRoutes(
 async function lookupPlaylist(
   ctx: AppContext,
   uri: string,
-): Promise<{ id: string; name: string; trackCount: number } | null> {
+): Promise<{ id: string; name: string } | null> {
+  // Empty means the operator has not chosen one yet, which the status page
+  // reports differently from a playlist it cannot read.
+  if (uri === '') return null;
   const id = playlistIdFromUri(uri);
   if (!id) return null;
   return ctx.spotify.getPlaylist(id);

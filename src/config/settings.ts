@@ -17,9 +17,18 @@ export const STRIPE_MINIMUM_CENTS: Record<Currency, number> = { CAD: 50, USD: 50
 export const CURRENCIES = ['CAD', 'USD'] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
-const spotifyPlaylistUri = z
-  .string()
-  .regex(/^spotify:playlist:[A-Za-z0-9]{22}$/, 'must look like spotify:playlist:<22 chars>');
+/**
+ * Empty is allowed and is the shipped default: there is no playlist that works
+ * for everyone. Spotify's own editorial playlists — the obvious choice — are
+ * unreadable by apps created after November 2024, so the operator has to pick
+ * one of their own.
+ */
+const spotifyPlaylistUri = z.union([
+  z.literal(''),
+  z
+    .string()
+    .regex(/^spotify:playlist:[A-Za-z0-9]{22}$/, 'must look like spotify:playlist:<22 chars>'),
+]);
 
 /**
  * The setting registry. Adding a key here is the only step needed to make it
@@ -35,7 +44,7 @@ export const SETTING_DEFS = {
   free_mode: { schema: z.boolean(), default: true },
 
   // --- playback ------------------------------------------------------------
-  fallback_playlist_uri: { schema: spotifyPlaylistUri, default: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M' },
+  fallback_playlist_uri: { schema: spotifyPlaylistUri, default: '' },
   /** librespot's advertised Connect device name; how we re-find it on restart. */
   device_name: { schema: z.string().min(1).max(64), default: 'Jukebox' },
   volume_percent: { schema: z.number().int().min(0).max(100), default: 70 },

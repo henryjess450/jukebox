@@ -15,8 +15,8 @@ import type { SpotifyDevice } from '../spotify/types.js';
 export type Action =
   /** librespot reappeared under a new id; point playback back at it. */
   | { type: 'retarget_device'; deviceId: string; reason: string }
-  /** Start the fallback playlist as the playback context. */
-  | { type: 'start_fallback'; deviceId: string; contextUri: string; offset: number; reason: string }
+  /** Start the fallback playlist as the playback context, shuffled. */
+  | { type: 'start_fallback'; deviceId: string; contextUri: string; reason: string }
   /** Resume a paused player without reloading anything. */
   | { type: 'resume'; deviceId: string; reason: string }
   /** The fallback must repeat, or the night ends when the playlist does. */
@@ -47,12 +47,6 @@ export interface ReconcileInput {
     pushLeadMs: number;
     interruptCurrent: boolean;
   };
-  /** Size of the fallback playlist, so we can start somewhere other than the
-   *  top. Zero or unknown means start at the beginning. */
-  fallbackTrackCount: number;
-  /** Injected for the random start offset — kept out of the function's body so
-   *  the same input always gives the same output in tests. */
-  randomOffset: number;
 }
 
 /**
@@ -74,6 +68,10 @@ export function reconcile(input: ReconcileInput): Action[] {
   const actions: Action[] = [];
 
   // --- 1. Is our speaker even there? ---------------------------------------
+
+  if (settings.fallbackPlaylistUri === '') {
+    return [{ type: 'wait', reason: 'no fallback playlist set — choose one in the admin panel' }];
+  }
 
   const device = findDeviceByName(devices, settings.deviceName);
   if (!device || device.id === null) {
@@ -133,7 +131,6 @@ export function reconcile(input: ReconcileInput): Action[] {
       type: 'start_fallback',
       deviceId,
       contextUri: settings.fallbackPlaylistUri,
-      offset: startOffset(input),
       reason: playback === null ? 'nothing playing' : 'player has no current track',
     });
     return actions;
@@ -154,7 +151,6 @@ export function reconcile(input: ReconcileInput): Action[] {
         type: 'start_fallback',
         deviceId,
         contextUri: settings.fallbackPlaylistUri,
-        offset: startOffset(input),
         reason: 'player stopped with an empty queue',
       });
     }
@@ -176,7 +172,6 @@ export function reconcile(input: ReconcileInput): Action[] {
       type: 'start_fallback',
       deviceId,
       contextUri: settings.fallbackPlaylistUri,
-      offset: startOffset(input),
       reason: 'playback drifted off the fallback playlist',
     });
     return actions;
@@ -241,11 +236,4 @@ export function reconcile(input: ReconcileInput): Action[] {
 export function remainingTrackMs(playback: PlayerSnapshot): number | null {
   if (playback.progressMs === null || playback.track === null) return null;
   return Math.max(0, playback.track.durationMs - playback.progressMs);
-}
-
-/** Start the fallback somewhere other than track 1, so the same song does not
- *  open every single evening. */
-function startOffset(input: ReconcileInput): number {
-  if (input.fallbackTrackCount <= 1) return 0;
-  return Math.min(input.fallbackTrackCount - 1, Math.max(0, Math.floor(input.randomOffset)));
 }

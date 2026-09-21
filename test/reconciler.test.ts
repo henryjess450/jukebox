@@ -111,8 +111,6 @@ function input(over: Partial<ReconcileInput> = {}): ReconcileInput {
       pushLeadMs: 15_000,
       interruptCurrent: false,
     },
-    fallbackTrackCount: 148,
-    randomOffset: 42,
     ...over,
   };
 }
@@ -184,19 +182,12 @@ describe('dead air', () => {
     assert.ok(find(actions, 'start_fallback'));
   });
 
-  it('starts somewhere other than track 1, so the night does not always open the same', () => {
-    const actions = reconcile(input({ playback: null, randomOffset: 42, fallbackTrackCount: 148 }));
-    assert.equal(find(actions, 'start_fallback')?.offset, 42);
-  });
-
-  it('never picks an offset past the end of the playlist', () => {
-    const actions = reconcile(input({ playback: null, randomOffset: 9_999, fallbackTrackCount: 10 }));
-    assert.equal(find(actions, 'start_fallback')?.offset, 9);
-  });
-
-  it('starts at the top when the playlist length is unknown', () => {
-    const actions = reconcile(input({ playback: null, fallbackTrackCount: 0 }));
-    assert.equal(find(actions, 'start_fallback')?.offset, 0);
+  it('does nothing when no fallback playlist has been chosen', () => {
+    const actions = reconcile(
+      input({ playback: null, settings: { ...input().settings, fallbackPlaylistUri: '' } }),
+    );
+    assert.deepEqual(types(actions), ['wait']);
+    assert.match(find(actions, 'wait')!.reason, /no fallback playlist/);
   });
 
   it('resumes rather than reloading when merely paused', () => {

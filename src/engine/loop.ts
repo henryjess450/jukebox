@@ -8,7 +8,7 @@
 import { EventLog } from '../db/events.js';
 import type { SettingsStore } from '../config/settings.js';
 import { QueueRepository } from '../queue/repository.js';
-import { SpotifyClient, playlistIdFromUri } from '../spotify/client.js';
+import { SpotifyClient } from '../spotify/client.js';
 import { formatDuration } from '../spotify/types.js';
 import { SpotifyError } from '../spotify/errors.js';
 import type { SpotifyAuth } from '../spotify/auth.js';
@@ -19,9 +19,6 @@ const TICK_MS = 3_000;
 /** After this many consecutive failures, slow down rather than hammering. */
 const BACKOFF_AFTER_FAILURES = 3;
 const BACKOFF_TICK_MS = 15_000;
-/** Cache the fallback playlist's length; it rarely changes and costs a call. */
-const PLAYLIST_CACHE_MS = 5 * 60 * 1000;
-
 export interface EngineDeps {
   spotify: SpotifyClient;
   auth: SpotifyAuth;
@@ -40,7 +37,6 @@ export class PlaybackEngine {
   #ticking = false;
   #consecutiveFailures = 0;
 
-  #playlistCache: { uri: string; trackCount: number; at: number } | null = null;
   /** Remembers the last device id we saw, so a change is worth logging once. */
   #lastDeviceId: string | null = null;
 
@@ -182,30 +178,7 @@ export class PlaybackEngine {
         pushLeadMs: settings.push_lead_ms,
         interruptCurrent: settings.interrupt_current,
       },
-      fallbackTrackCount: await this.#fallbackTrackCount(settings.fallback_playlist_uri, now),
-      randomOffset: (this.#deps.random?.() ?? Math.random()) * 10_000,
     };
-  }
-
-  async #fallbackTrackCount(uri: string, now: number): Promise<number> {
-    const cached = this.#playlistCache;
-    if (cached && cached.uri === uri && now - cached.at < PLAYLIST_CACHE_MS) {
-      return cached.trackCount;
-    }
-    const id = playlistIdFromUri(uri);
-    if (!id) return 0;
-
-    try {
-      const playlist = await this.#deps.spotify.getPlaylist(id);
-      this.#playlistCache = { uri, trackCount: playlist.trackCount, at: now };
-      return playlist.trackCount;
-    } catch (err) {
-      // Not fatal — we just start the playlist at the top this time.
-      log.warn('could not read the fallback playlist', {
-        err: err instanceof SpotifyError ? err.toLogFields() : err,
-      });
-      return cached?.trackCount ?? 0;
-    }
   }
 
   /**
@@ -291,18 +264,28 @@ export class PlaybackEngine {
         }
 
         case 'start_fallback': {
-          await spotify.playContext(action.contextUri, action.deviceId, action.offset);
-          // Repeat must be set after playback starts; Spotify ignores it on a
-          // device that is not yet playing anything.
+          await spotify.playContext(action.contextUri, action.deviceId);
+
+          // Both must follow playback: Spotify ignores them on a device that
+          // is not yet playing anything. Neither is worth failing the tick
+          // over — the music is already on, which is the important part.
+          //
+          // Shuffle is what stops the same song opening every evening. The
+          // API gives us no way to learn a playlist's length, so a random
+          // start offset is not available to us.
+          await spotify.setShuffle(true, action.deviceId).catch((err: unknown) => {
+            log.warn('could not enable shuffle', {
+              err: err instanceof SpotifyError ? err.toLogFields() : err,
+            });
+          });
           await spotify.setRepeat('context', action.deviceId).catch((err: unknown) => {
             log.warn('could not set repeat', {
               err: err instanceof SpotifyError ? err.toLogFields() : err,
             });
           });
-          events.record('fallback_restarted', {
-            detail: { reason: action.reason, offset: action.offset },
-          });
-          log.info('fallback playlist started', { reason: action.reason, offset: action.offset });
+
+          events.record('fallback_restarted', { detail: { reason: action.reason } });
+          log.info('fallback playlist started', { reason: action.reason });
           break;
         }
 

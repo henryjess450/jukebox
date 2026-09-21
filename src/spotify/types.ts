@@ -63,11 +63,16 @@ export const QueueResponseSchema = z.object({
   queue: z.array(TrackSchema.nullable()),
 });
 
+/**
+ * Only what the live API actually returns. `tracks` is absent from the current
+ * playlist response — it was there historically and is still documented, but
+ * requiring it made every fallback-playlist read fail as malformed.
+ */
 export const PlaylistSchema = z.object({
   id: z.string(),
-  uri: z.string(),
+  uri: z.string().optional(),
   name: z.string(),
-  tracks: z.object({ total: z.number() }),
+  tracks: z.object({ total: z.number() }).optional(),
   owner: z.object({ display_name: z.string().nullable() }).optional(),
 });
 

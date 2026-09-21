@@ -132,6 +132,7 @@ beforeEach(() => {
   settings = new SettingsStore(db);
   events = new EventLog(db);
   settings.update({ fallback_playlist_uri: FALLBACK, device_name: 'Jukebox' });
+  // The shipped default is empty; these tests are about a configured box.
 });
 
 function engineWith(spy: ReturnType<typeof spyClient>, auth = connectedAuth): PlaybackEngine {
@@ -171,9 +172,13 @@ describe('engine tick', () => {
     const play = spy.find('playContext');
     assert.equal(play?.args[0], FALLBACK);
     assert.equal(play?.args[1], 'librespot-1');
-    // Repeat must follow playback, not precede it.
+
+    // Both must follow playback: Spotify ignores them on a device that is not
+    // yet playing anything.
     assert.ok(spy.methods().indexOf('setRepeat') > spy.methods().indexOf('playContext'));
+    assert.ok(spy.methods().indexOf('setShuffle') > spy.methods().indexOf('playContext'));
     assert.equal(spy.find('setRepeat')?.args[0], 'context');
+    assert.equal(spy.find('setShuffle')?.args[0], true, 'shuffle is what varies the opening song');
   });
 
   it('waits quietly when librespot is missing', async () => {
@@ -328,14 +333,17 @@ describe('failure handling', () => {
     assert.equal(queue.byId(id)?.state, 'queued', 'librespot restarting must not lose the request');
   });
 
-  it('still starts the fallback when the playlist lookup fails', async () => {
+  it('starts the fallback even when shuffle and repeat are refused', async () => {
+    // The music being on matters more than the two settings that decorate it.
     const spy = spyClient({
       playback: null,
-      failures: { getPlaylist: new SpotifyError('server', 'boom') },
+      failures: {
+        setShuffle: new SpotifyError('server', 'boom'),
+        setRepeat: new SpotifyError('server', 'boom'),
+      },
     });
-    await engineWith(spy).tick();
-    assert.equal(spy.find('playContext')?.args[0], FALLBACK, 'silence is worse than track 1');
-    assert.equal(spy.find('playContext')?.args[2], 0);
+    await engineWith(spy).tick(); // must not throw
+    assert.equal(spy.find('playContext')?.args[0], FALLBACK);
   });
 
   it('does not overlap ticks', async () => {
@@ -402,12 +410,13 @@ describe('failure handling', () => {
     assert.ok(spy.find('playContext'), 'and it picks the music back up');
   });
 
-  it('caches the playlist length instead of asking every tick', async () => {
+  it('never reads the playlist during a tick', async () => {
+    // The API exposes no track count, so the engine has no reason to ask —
+    // shuffle replaced the random start offset that used to need one.
     const spy = spyClient({ playback: null });
     const engine = engineWith(spy);
     await engine.tick();
     await engine.tick();
-    await engine.tick();
-    assert.equal(spy.count('getPlaylist'), 1);
+    assert.equal(spy.count('getPlaylist'), 0);
   });
 });
