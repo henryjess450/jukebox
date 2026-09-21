@@ -314,7 +314,7 @@ export function settingsPage({
             })}
             ${textField('header_image_url', 'Header photo URL', shown('header_image_url'), {
               placeholder: 'https://…/banner.jpg',
-              hint: 'Shown across the top of the guest page. Leave empty for just the name. Must be a public https URL — paste a link, not a file.',
+              hint: 'Framed at the top of the guest page. Best at 1200 × 675 (16:9) — anything else is cropped to that shape. Must be a public https URL: paste a link, not a file.',
               ...(errors['header_image_url'] ? { error: errors['header_image_url'] } : {}),
             })}
 

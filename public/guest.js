@@ -55,9 +55,12 @@
     return img;
   }
 
-  /** The queue's emoji, if the operator set one. */
-  function queueEmoji() {
-    return config.queueEmoji ? config.queueEmoji + ' ' : '';
+  /** The queue's emoji as its own element, so the spacing is the stylesheet's
+   *  job rather than a space glued to the front of a string. */
+  function withQueueEmoji(parent, message) {
+    if (config.queueEmoji) parent.appendChild(el('span', 'emoji', config.queueEmoji));
+    parent.appendChild(text(message));
+    return parent;
   }
 
   // --- search ---------------------------------------------------------------
@@ -271,7 +274,7 @@
 
     els.nowPlaying.textContent = '';
     if (!snapshot.nowPlaying) {
-      els.nowPlaying.appendChild(el('p', 'hint', queueEmoji() + 'Nothing playing.'));
+      els.nowPlaying.appendChild(withQueueEmoji(el('p', 'hint'), 'Nothing playing.'));
     } else {
       var row = el('div', 'now-row');
       row.appendChild(artwork(snapshot.nowPlaying.albumArtUrl, 56));

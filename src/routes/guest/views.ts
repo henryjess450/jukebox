@@ -68,7 +68,9 @@ export function guestPage(opts: GuestPageOptions): string {
     body: html`
       <header class="guest-header ${opts.headerImageUrl ? 'guest-header--photo' : ''}">
         ${opts.headerImageUrl
-          ? html`<img class="guest-header__photo" src="${opts.headerImageUrl}" alt="" />`
+          ? html`<span class="guest-header__frame">
+              <img class="guest-header__photo" src="${opts.headerImageUrl}" alt="" />
+            </span>`
           : ''}
         <div class="guest-header__text">
           <h1>${title}</h1>
@@ -114,7 +116,9 @@ export function guestPage(opts: GuestPageOptions): string {
             </section>`}
 
         <section class="queue" aria-label="What is playing">
-          <h2 class="queue__title">${opts.queueEmoji ? `${opts.queueEmoji} ` : ''}Playing now</h2>
+          <h2 class="queue__title">
+            ${opts.queueEmoji ? html`<span class="emoji">${opts.queueEmoji}</span>` : ''}Playing now
+          </h2>
           <div id="now-playing" class="now-playing">
             <p class="hint">Loading…</p>
           </div>
