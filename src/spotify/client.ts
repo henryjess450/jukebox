@@ -35,6 +35,8 @@ export const SEARCH_LIMIT_MAX = 10;
 const INTERACTIVE: RequestOptions = { timeoutMs: 5_000, maxAttempts: 2, maxRetryAfterMs: 2_000 };
 /** The poll loop can afford to be patient; nobody is watching a spinner. */
 const BACKGROUND: RequestOptions = { timeoutMs: 8_000, maxAttempts: 3, maxRetryAfterMs: 10_000 };
+/** Playback commands: we act on the status code, never on the body. */
+const COMMAND: RequestOptions = { ...BACKGROUND, isPlayerEndpoint: true, ignoreBody: true };
 
 export interface PlayerSnapshot {
   device: SpotifyDevice | null;
@@ -150,19 +152,17 @@ export class SpotifyClient {
   /** Insert a track directly after whatever is playing. Stacks in call order. */
   async addToQueue(trackUri: string, deviceId?: string): Promise<void> {
     await this.#http.request('/me/player/queue', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'POST',
       query: { uri: trackUri, device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 
   async skipToNext(deviceId?: string): Promise<void> {
     await this.#http.request('/me/player/next', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'POST',
       query: { device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 
@@ -176,33 +176,30 @@ export class SpotifyClient {
    */
   async playContext(contextUri: string, deviceId?: string, offsetPosition?: number): Promise<void> {
     await this.#http.request('/me/player/play', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       query: { device_id: deviceId },
       body: {
         context_uri: contextUri,
         ...(offsetPosition !== undefined ? { offset: { position: offsetPosition } } : {}),
       },
-      isPlayerEndpoint: true,
     });
   }
 
   /** Resume without changing what is loaded. */
   async resume(deviceId?: string): Promise<void> {
     await this.#http.request('/me/player/play', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       query: { device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 
   async pause(deviceId?: string): Promise<void> {
     await this.#http.request('/me/player/pause', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       query: { device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 
@@ -210,28 +207,25 @@ export class SpotifyClient {
    *  a new device id. `play: true` resumes rather than transferring paused. */
   async transferPlayback(deviceId: string, play = true): Promise<void> {
     await this.#http.request('/me/player', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       body: { device_ids: [deviceId], play },
-      isPlayerEndpoint: true,
     });
   }
 
   async setRepeat(state: 'off' | 'track' | 'context', deviceId?: string): Promise<void> {
     await this.#http.request('/me/player/repeat', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       query: { state, device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 
   async setShuffle(state: boolean, deviceId?: string): Promise<void> {
     await this.#http.request('/me/player/shuffle', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       query: { state, device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 
@@ -239,10 +233,9 @@ export class SpotifyClient {
   async setVolume(percent: number, deviceId?: string): Promise<void> {
     const clamped = Math.max(0, Math.min(100, Math.round(percent)));
     await this.#http.request('/me/player/volume', {
-      ...BACKGROUND,
+      ...COMMAND,
       method: 'PUT',
       query: { volume_percent: clamped, device_id: deviceId },
-      isPlayerEndpoint: true,
     });
   }
 

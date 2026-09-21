@@ -234,6 +234,13 @@ describe('SpotifyHttp', () => {
     );
   });
 
+  it('accepts a 200 whose body is not JSON when the caller ignores it', async () => {
+    // Spotify answers shuffle and repeat with an opaque plain-text token.
+    // Parsing it made successful commands look like failures.
+    const { http } = harness([new Response('OY8tXec5CTMh_SiFDV-nMqNg8N4', { status: 200 })]);
+    assert.equal(await http.request('/me/player/shuffle', { method: 'PUT', ignoreBody: true }), null);
+  });
+
   it('rejects a non-JSON body as malformed rather than crashing', async () => {
     const { http } = harness([new Response('<html>502 Bad Gateway</html>', { status: 200 })]);
     await assert.rejects(

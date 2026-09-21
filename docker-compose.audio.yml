@@ -34,7 +34,7 @@ services:
       - librespot-cache:/cache
 
     command:
-      - --name=${DEVICE_NAME:-Jukebox}
+      - --name=${DEVICE_NAME:-Control Box - Player}
       - --backend=alsa
       - --device=${ALSA_DEVICE:-default}
       - --cache=/cache

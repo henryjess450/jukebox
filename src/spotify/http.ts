@@ -28,6 +28,14 @@ export interface RequestOptions {
   /** Player endpoints report "no active device" as a 404; everything else 404s
    *  because the thing genuinely is not there. */
   isPlayerEndpoint?: boolean;
+  /**
+   * Discard the response body without parsing it.
+   *
+   * Several player commands answer 200 with an opaque plain-text token rather
+   * than JSON or an empty body. Parsing that threw `malformed` on calls that
+   * had in fact succeeded — shuffle and repeat appeared to fail every time.
+   */
+  ignoreBody?: boolean;
 }
 
 export interface HttpClientOptions {
@@ -88,6 +96,7 @@ export class SpotifyHttp {
       maxAttempts = DEFAULT_MAX_ATTEMPTS,
       maxRetryAfterMs = DEFAULT_MAX_RETRY_AFTER_MS,
       isPlayerEndpoint = false,
+      ignoreBody = false,
     } = options;
 
     const url = this.#buildUrl(path, query);
@@ -109,7 +118,14 @@ export class SpotifyHttp {
         throw lastError;
       }
 
-      if (response.ok) return this.#parseBody<T>(response, path);
+      if (response.ok) {
+        if (ignoreBody) {
+          // Drain it so the socket can be reused, then discard.
+          await response.text().catch(() => undefined);
+          return null;
+        }
+        return this.#parseBody<T>(response, path);
+      }
 
       // 401: the token died mid-flight. Refresh once, then retry immediately —
       // this does not consume an attempt, because nothing was wrong with the

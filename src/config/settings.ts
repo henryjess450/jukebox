@@ -45,8 +45,12 @@ export const SETTING_DEFS = {
 
   // --- playback ------------------------------------------------------------
   fallback_playlist_uri: { schema: spotifyPlaylistUri, default: '' },
-  /** librespot's advertised Connect device name; how we re-find it on restart. */
-  device_name: { schema: z.string().min(1).max(64), default: 'Jukebox' },
+  /**
+   * The Connect device this jukebox drives, matched by name because the
+   * device *id* changes every time librespot restarts. Must match the
+   * `--name` librespot advertises, exactly.
+   */
+  device_name: { schema: z.string().min(1).max(64), default: 'Control Box - Player' },
   volume_percent: { schema: z.number().int().min(0).max(100), default: 70 },
   /** Skip the current track the moment a request arrives, rather than letting
    *  it finish. Never applies when the current track is itself a paid request. */

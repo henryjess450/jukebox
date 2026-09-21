@@ -111,7 +111,7 @@ replacing them, so audio access has to be *added* by the second file; it
 cannot be subtracted by one.
 
 Then, **once**, from a phone or laptop **on the same Wi-Fi as the box**: open
-Spotify, tap the Connect (speaker) icon, and pick **Jukebox**. This hands
+Spotify, tap the Connect (speaker) icon, and pick **Control Box - Player**. This hands
 librespot the credentials it needs.
 
 This step is not optional and cannot be done from the admin panel. Spotify

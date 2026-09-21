@@ -177,9 +177,25 @@ describe('dead air', () => {
     assert.match(start!.reason, /nothing playing/);
   });
 
-  it('starts the fallback when the player is stopped with an empty queue', () => {
+  it('starts the fallback when the player is stopped with nothing loaded', () => {
     const actions = reconcile(input({ playback: playing({ isPlaying: false, track: null }) }));
     assert.ok(find(actions, 'start_fallback'));
+  });
+
+  it('leaves alone something playing that it cannot identify', () => {
+    // `item` is null for podcast episodes, ads and local files. Restarting
+    // here relaunches the playlist on every tick, which sounds exactly like
+    // the track skipping every few seconds.
+    const actions = reconcile(input({ playback: playing({ isPlaying: true, track: null }) }));
+    assert.deepEqual(types(actions), ['wait']);
+    assert.equal(find(actions, 'start_fallback'), undefined);
+  });
+
+  it('does not relaunch on every tick while an unidentified track plays', () => {
+    const scenario = input({ playback: playing({ isPlaying: true, track: null }) });
+    for (let tick = 0; tick < 5; tick++) {
+      assert.equal(find(reconcile(scenario), 'start_fallback'), undefined, `tick ${tick}`);
+    }
   });
 
   it('does nothing when no fallback playlist has been chosen', () => {

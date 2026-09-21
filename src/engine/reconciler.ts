@@ -124,14 +124,34 @@ export function reconcile(input: ReconcileInput): Action[] {
       !actions.some((a) => a.type === 'mark_failed' && a.requestId === r.id),
   );
 
-  if (playback === null || playback.track === null) {
+  if (playback === null) {
     // Dead air. Start the fallback; a pending request will be inserted on the
     // next pass, once there is something to insert it ahead of.
     actions.push({
       type: 'start_fallback',
       deviceId,
       contextUri: settings.fallbackPlaylistUri,
-      reason: playback === null ? 'nothing playing' : 'player has no current track',
+      reason: 'nothing playing',
+    });
+    return actions;
+  }
+
+  if (playback.track === null) {
+    // Something is playing that we cannot identify: a podcast episode, an ad,
+    // or a local file. `item` is null for all of these.
+    //
+    // Restarting here would relaunch the playlist on every tick, which sounds
+    // like the track skipping every few seconds. If it is genuinely playing,
+    // leave it alone and pick up when a real track appears; only silence
+    // justifies taking over.
+    if (playback.isPlaying) {
+      return [{ type: 'wait', reason: 'playing something we cannot identify; leaving it alone' }];
+    }
+    actions.push({
+      type: 'start_fallback',
+      deviceId,
+      contextUri: settings.fallbackPlaylistUri,
+      reason: 'player is stopped with no track loaded',
     });
     return actions;
   }
