@@ -4,7 +4,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
 #
 # TUNNEL_TOKEN comes from the Cloudflare Zero Trust dashboard when you create
-# the tunnel. Point the tunnel's public hostname at http://localhost:8080.
+# the tunnel. Point the tunnel's public hostname at http://localhost:4321.
 
 services:
   cloudflared:

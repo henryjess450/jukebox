@@ -25,12 +25,13 @@ services:
       # Inside the container we must listen on all interfaces; the published
       # port below is what decides who can actually reach it.
       HOST: 0.0.0.0
-      PORT: ${PORT:-8080}
+      PORT: ${PORT:-4321}
 
-    # Loopback only: a reverse proxy on the host fronts this. Drop the
-    # 127.0.0.1 prefix to reach it from other machines on the LAN.
+    # BIND_HOST decides who can reach this. 127.0.0.1 (the default) means only
+    # this machine, which is right when a reverse proxy fronts it. Set it to
+    # 0.0.0.0 in .env on the venue box so phones on the Wi-Fi can connect.
     ports:
-      - "127.0.0.1:${PORT:-8080}:${PORT:-8080}"
+      - "${BIND_HOST:-127.0.0.1}:${PORT:-4321}:${PORT:-4321}"
 
     volumes:
       - jukebox-data:/data

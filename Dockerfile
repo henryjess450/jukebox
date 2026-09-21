@@ -51,14 +51,14 @@ USER node
 
 ENV DATABASE_PATH=/data/jukebox.db \
     HOST=0.0.0.0 \
-    PORT=8080
+    PORT=4321
 
-EXPOSE 8080
+EXPOSE 4321
 
 # Reads PORT rather than hardcoding it, so changing the port in one place is
 # enough and the health check cannot drift out of step with the app.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "const p=process.env.PORT||8080;fetch('http://127.0.0.1:'+p+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.PORT||4321;fetch('http://127.0.0.1:'+p+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/main.js"]

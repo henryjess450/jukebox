@@ -132,7 +132,7 @@ is generated or fetched by you, directly, and typed into `.env` on the box.
 | Spotify **Premium** | The account you will authorize in the admin panel must have it. The Web API refuses playback control on a free account, and librespot will connect but never play. Family/Duo count. |
 | `STRIPE_SECRET_KEY` | <https://dashboard.stripe.com/apikeys>. Use the **test** key (`sk_test_…`) until the whole flow works; switch to live (`sk_live_…`) when you are ready to take real money. Never the publishable key — this app uses hosted Checkout and needs the secret key server-side. |
 | `STRIPE_WEBHOOK_SECRET` | <https://dashboard.stripe.com/webhooks> → **Add endpoint** → URL `https://driftwood-digital.season.henryjess.ca/webhooks/stripe`, event `checkout.session.completed`. The signing secret (`whsec_…`) is shown on the endpoint's page. Only needed once the tunnel is up; the primary confirmation path does not use it. |
-| `TUNNEL_TOKEN` | Only for Option B. <https://one.dash.cloudflare.com> → **Networks → Tunnels → Create a tunnel** → Cloudflared. Copy the token from the install command, then add a **public hostname** pointing at `http://localhost:8080`. Requires the domain to be on Cloudflare's nameservers. |
+| `TUNNEL_TOKEN` | Only for Option B. <https://one.dash.cloudflare.com> → **Networks → Tunnels → Create a tunnel** → Cloudflared. Copy the token from the install command, then add a **public hostname** pointing at `http://localhost:4321`. Requires the domain to be on Cloudflare's nameservers. |
 | `COOKIE_SECRET` | `openssl rand -base64 48` on the box. Yours alone; rotating it just signs everyone out. |
 | `ADMIN_PASSWORD_HASH` | `npm run hash-password`, or the Docker one-liner in section 3. The plaintext password never leaves your head; only the hash goes in `.env`. |
 | `AUDIO_GID` | `getent group audio \| cut -d: -f3` on the box. |
@@ -182,7 +182,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/driftwood-digital.season.henryjess.ca/privkey.pem;
 
     location / {
-        proxy_pass         http://127.0.0.1:8080;
+        proxy_pass         http://127.0.0.1:4321;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
@@ -192,7 +192,7 @@ server {
 
     # Server-sent events: buffering here would stall the live queue forever.
     location /api/queue/stream {
-        proxy_pass         http://127.0.0.1:8080;
+        proxy_pass         http://127.0.0.1:4321;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -215,7 +215,7 @@ server {
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-The app binds `127.0.0.1:8080` and trusts `X-Forwarded-For`, so per-IP limits
+The app binds `127.0.0.1:4321` and trusts `X-Forwarded-For`, so per-IP limits
 see the guest's address rather than nginx's.
 
 ### Option B — Cloudflare Tunnel
@@ -252,7 +252,7 @@ project needs.
    | Purpose | Redirect URI |
    | --- | --- |
    | This deployment | `https://driftwood-digital.season.henryjess.ca/admin/spotify/callback` |
-   | Testing before HTTPS works | `http://127.0.0.1:8080/admin/spotify/callback` |
+   | Testing before HTTPS works | `http://127.0.0.1:4321/admin/spotify/callback` |
 
    **Do not use `localhost`.** Since February 2025 Spotify rejects the
    hostname outright — you must write the literal `127.0.0.1`. Plain HTTP is

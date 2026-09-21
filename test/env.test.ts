@@ -18,7 +18,7 @@ function baseEnv(): NodeJS.ProcessEnv {
 describe('loadEnv', () => {
   it('accepts a complete environment and applies defaults', () => {
     const env = loadEnv(baseEnv());
-    assert.equal(env.PORT, 8080);
+    assert.equal(env.PORT, 4321);
     assert.equal(env.HOST, '127.0.0.1');
     assert.equal(env.NODE_ENV, 'production');
   });
@@ -48,19 +48,19 @@ describe('loadEnv', () => {
     // Since Feb 2025 Spotify rejects the hostname outright; finding out here
     // beats finding out on Spotify's error page.
     assert.throws(
-      () => loadEnv({ ...baseEnv(), PUBLIC_URL: 'http://localhost:8080' }),
+      () => loadEnv({ ...baseEnv(), PUBLIC_URL: 'http://localhost:4321' }),
       /127\.0\.0\.1/,
     );
   });
 
   it('accepts the loopback literal over plain HTTP', () => {
-    const env = loadEnv({ ...baseEnv(), PUBLIC_URL: 'http://127.0.0.1:8080' });
-    assert.equal(env.PUBLIC_URL, 'http://127.0.0.1:8080');
+    const env = loadEnv({ ...baseEnv(), PUBLIC_URL: 'http://127.0.0.1:4321' });
+    assert.equal(env.PUBLIC_URL, 'http://127.0.0.1:4321');
   });
 
   it('accepts IPv6 loopback', () => {
-    const env = loadEnv({ ...baseEnv(), PUBLIC_URL: 'http://[::1]:8080' });
-    assert.equal(env.PUBLIC_URL, 'http://[::1]:8080');
+    const env = loadEnv({ ...baseEnv(), PUBLIC_URL: 'http://[::1]:4321' });
+    assert.equal(env.PUBLIC_URL, 'http://[::1]:4321');
   });
 
   it('refuses plain HTTP on a real hostname', () => {
@@ -88,7 +88,7 @@ describe('loadEnv', () => {
 
   it('falls back to defaults when an optional value is blank', () => {
     const env = loadEnv({ ...baseEnv(), PORT: '', HOST: '' });
-    assert.equal(env.PORT, 8080);
+    assert.equal(env.PORT, 4321);
     assert.equal(env.HOST, '127.0.0.1');
   });
 

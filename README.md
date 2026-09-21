@@ -42,6 +42,20 @@ cd jukebox
 ./scripts/setup.sh
 ```
 
+The app listens on **port 4321**. To also serve it on port 80 — so a QR code
+can point at a bare hostname with no port in it — add the overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.port80.yml up -d --build
+```
+
+Port 80 is deliberately not in the base file: it is often already taken by
+nginx or IIS, and a clash there would stop the whole stack from starting.
+
+For guests' phones to reach the box over the venue Wi-Fi, set `BIND_HOST=0.0.0.0`
+in `.env`. The default, `127.0.0.1`, accepts connections only from the machine
+itself, which is what you want when nginx or a tunnel fronts it.
+
 `setup.sh` installs Docker if it is missing, generates the admin password and
 cookie secret, checks the sound card, writes `.env`, and starts the stack. It
 prints the admin password once — write it down. Re-running it is safe; an
@@ -92,7 +106,7 @@ openssl rand -base64 48          # paste as COOKIE_SECRET
 npm run dev
 ```
 
-Then open <http://127.0.0.1:8080/admin>.
+Then open <http://127.0.0.1:4321/admin>.
 
 `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` must be present for the process
 to start, but nothing uses them until milestone 2 — any placeholder will do for

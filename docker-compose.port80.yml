@@ -1,0 +1,17 @@
+# Also serve on port 80, so the QR code can point at a bare hostname with no
+# port number in it.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.port80.yml up -d --build
+#
+# Kept out of the base file deliberately: port 80 is often already taken (by
+# nginx, IIS, or another container), and a clash there would stop the whole
+# stack from starting. This way the jukebox always comes up on its own port and
+# port 80 is a bonus you opt into.
+#
+# On Linux, binding port 80 needs the Docker daemon to be root, which it
+# normally is. Rootless Docker cannot do it without extra configuration.
+
+services:
+  jukebox:
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:80:${PORT:-4321}"
