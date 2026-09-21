@@ -9,6 +9,7 @@ import { EventLog } from '../db/events.js';
 import type { SettingsStore } from '../config/settings.js';
 import { QueueRepository } from '../queue/repository.js';
 import { SpotifyClient } from '../spotify/client.js';
+import type { SpotifyDevice } from '../spotify/types.js';
 import { formatDuration } from '../spotify/types.js';
 import { SpotifyError } from '../spotify/errors.js';
 import type { SpotifyAuth } from '../spotify/auth.js';
@@ -16,6 +17,14 @@ import { log } from '../log.js';
 import { reconcile, type Action, type ReconcileInput } from './reconciler.js';
 
 const TICK_MS = 3_000;
+/**
+ * The device list barely changes, but fetching it every tick doubled the
+ * engine's call rate and helped push the account into Spotify's rate limit.
+ * It is re-read on this interval, or immediately whenever the device we want
+ * is not in the cached copy.
+ */
+const DEVICE_CACHE_MS = 30_000;
+
 /** After this many consecutive failures, slow down rather than hammering. */
 const BACKOFF_AFTER_FAILURES = 3;
 const BACKOFF_TICK_MS = 15_000;
@@ -40,6 +49,8 @@ export class PlaybackEngine {
   #idleTicks = 0;
   /** Set while an operator has deliberately paused playback. */
   #adminPaused = false;
+
+  #deviceCache: { devices: SpotifyDevice[]; at: number } | null = null;
 
   /** Remembers the last device id we saw, so a change is worth logging once. */
   #lastDeviceId: string | null = null;
@@ -170,7 +181,7 @@ export class PlaybackEngine {
 
     const [playback, devices] = await Promise.all([
       this.#deps.spotify.getPlaybackState(),
-      this.#deps.spotify.getDevices(),
+      this.#devices(settings.device_name, now),
     ]);
 
     // Dead air is nothing playing, or playing nothing identifiable, or paused.
@@ -202,6 +213,25 @@ export class PlaybackEngine {
         interruptCurrent: settings.interrupt_current,
       },
     };
+  }
+
+  /**
+   * The device list, cached. Re-read when it is stale, or when the device we
+   * are looking for is not in the copy we have — a librespot restart changes
+   * the id, and waiting 30s to notice would be 30s of silence.
+   */
+  async #devices(wantedName: string, now: number): Promise<SpotifyDevice[]> {
+    const cached = this.#deviceCache;
+    if (cached) {
+      const fresh = now - cached.at < DEVICE_CACHE_MS;
+      const wanted = wantedName.trim().toLowerCase();
+      const present = cached.devices.some((d) => d.name.trim().toLowerCase() === wanted);
+      if (fresh && present) return cached.devices;
+    }
+
+    const devices = await this.#deps.spotify.getDevices();
+    this.#deviceCache = { devices, at: now };
+    return devices;
   }
 
   /**

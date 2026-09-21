@@ -53,7 +53,9 @@ export function statusPage(view: StatusView): string {
   return page({
     title: 'Status — Jukebox admin',
     bodyClass: 'page-admin',
-    head: html`<meta http-equiv="refresh" content="15" />`,
+    // Every reload costs four Spotify calls. Fifteen seconds was enough, left
+    // open on a second screen, to help exhaust the account's rate limit.
+    head: html`<meta http-equiv="refresh" content="60" />`,
     body: html`
       <header class="admin-header">
         <h1>Jukebox admin</h1>

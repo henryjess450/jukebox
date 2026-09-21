@@ -428,3 +428,40 @@ describe('failure handling', () => {
     assert.equal(spy.count('getPlaylist'), 0);
   });
 });
+
+describe('call rate', () => {
+  it('does not re-read the device list on every tick', async () => {
+    // Two calls per three-second tick was enough, with a second instance
+    // running, to exhaust the account's Spotify rate limit.
+    const spy = spyClient({
+      playback: {
+        device: ourDevice,
+        isPlaying: true,
+        progressMs: 1_000,
+        repeatState: 'context',
+        contextUri: FALLBACK,
+        track: track(),
+      },
+    });
+    const engine = engineWith(spy);
+
+    await engine.tick();
+    await engine.tick();
+    await engine.tick();
+
+    assert.equal(spy.count('getDevices'), 1, 'the device list barely changes');
+    assert.equal(spy.count('getPlaybackState'), 3, 'playback state still every tick');
+  });
+
+  it('re-reads the device list at once when our device is missing', async () => {
+    // librespot restarting changes the device id; waiting for the cache to
+    // expire would be that many seconds of silence.
+    const spy = spyClient({ devices: [], playback: null });
+    const engine = engineWith(spy);
+
+    await engine.tick();
+    await engine.tick();
+
+    assert.equal(spy.count('getDevices'), 2, 'a missing device must not be cached');
+  });
+});
