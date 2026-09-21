@@ -56,6 +56,33 @@ For guests' phones to reach the box over the venue Wi-Fi, set `BIND_HOST=0.0.0.0
 in `.env`. The default, `127.0.0.1`, accepts connections only from the machine
 itself, which is what you want when nginx or a tunnel fronts it.
 
+### Putting it on the internet
+
+Serving it on a public hostname needs HTTPS. Not as a nicety — without it:
+
+- **Spotify refuses the redirect URI**, so the jukebox cannot be connected to
+  an account at all. Plain HTTP is allowed only for `127.0.0.1`.
+- **Stripe's return URL** would be `http://`, and the browser drops the guest's
+  session cookie on the way back, so a paid request is never confirmed.
+- **The admin password crosses the internet in cleartext**, and `/admin` is
+  reachable by anyone who finds the hostname.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d --build
+```
+
+Caddy obtains a certificate from Let's Encrypt and renews it on its own. It
+needs, in `.env`:
+
+```
+PUBLIC_HOSTNAME=jukebox.example.com
+PUBLIC_URL=https://jukebox.example.com
+```
+
+and **ports 80 and 443 both forwarded** to the machine. Port 80 is what issues
+and renews the certificate; 443 serves the site. Do not combine this with
+`docker-compose.port80.yml` — they both want port 80.
+
 `setup.sh` installs Docker if it is missing, generates the admin password and
 cookie secret, checks the sound card, writes `.env`, and starts the stack. It
 prints the admin password once — write it down. Re-running it is safe; an

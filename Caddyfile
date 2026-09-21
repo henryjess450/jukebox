@@ -1,0 +1,24 @@
+# Terminates HTTPS in front of the jukebox and obtains a certificate from
+# Let's Encrypt automatically, renewing it without being asked.
+#
+# Requires ports 80 AND 443 forwarded to this machine: the certificate is
+# issued over port 80, and renewal needs it to keep working.
+
+{$PUBLIC_HOSTNAME} {
+	encode gzip
+
+	# The live queue is server-sent events. Proxy buffering would hold the
+	# frames back and every phone would show a stale queue with no error to
+	# explain it, so this route is flushed as it is written.
+	@sse path /api/queue/stream
+	reverse_proxy @sse jukebox:{$PORT:4321} {
+		flush_interval -1
+	}
+
+	reverse_proxy jukebox:{$PORT:4321}
+
+	log {
+		output stdout
+		format console
+	}
+}

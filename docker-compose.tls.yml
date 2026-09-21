@@ -1,0 +1,48 @@
+# HTTPS in front of the jukebox, with certificates obtained and renewed
+# automatically.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d --build
+#
+# Needed because both Spotify and Stripe refuse to work over plain HTTP on a
+# public hostname, and because an admin password sent over the open internet in
+# cleartext is readable by anyone between the guest and the box.
+#
+# Before this will work:
+#   1. Forward ports 80 AND 443 on the router to this machine. Port 80 alone is
+#      not enough -- it issues the certificate, 443 serves the site.
+#   2. Set PUBLIC_HOSTNAME and PUBLIC_URL in .env, e.g.
+#        PUBLIC_HOSTNAME=jukebox.example.com
+#        PUBLIC_URL=https://jukebox.example.com
+#   3. Make sure nothing else on this machine is already holding 80 or 443.
+#
+# Do NOT combine this with docker-compose.port80.yml; they both want port 80.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: jukebox-tls
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+      # HTTP/3. Harmless if the router does not forward UDP.
+      - "443:443/udp"
+
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME in .env, e.g. jukebox.example.com}
+      PORT: ${PORT:-4321}
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Losing this volume means re-issuing them, and
+      # Let's Encrypt rate-limits that, so keep it.
+      - caddy-data:/data
+      - caddy-config:/config
+
+    depends_on:
+      - jukebox
+
+volumes:
+  caddy-data:
+  caddy-config:
