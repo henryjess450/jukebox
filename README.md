@@ -75,21 +75,21 @@ docker compose up -d --build     # app only, no librespot
 
 ### Windows
 
-PowerShell 5.1 does not support `&&`, so run the clone and the script as two
-commands:
+Clone it, then **double-click `setup.bat`**.
 
 ```powershell
 git clone https://github.com/henryjess450/jukebox.git
-cd jukebox
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 ```
 
-Windows blocks local scripts by default, so running `.\scripts\setup.ps1`
-directly fails with `UnauthorizedAccess`. The `-ExecutionPolicy Bypass` above
-applies to that one process only and changes nothing on the machine.
+It asks for an admin password, your Spotify keys and (optionally) a Stripe
+key, writes `.env`, builds, starts, and then checks the app actually answers —
+printing the container's log if it does not. Re-run it any time; it offers to
+keep the configuration you already have.
 
-Pass `-AdminPassword "your-password"` to choose your own instead of a
-generated one.
+`setup.bat` exists because PowerShell refuses to run local scripts by default
+and batch cannot prompt for a password without echoing it. The batch file only
+launches `scripts/setup.ps1` past that policy, for that one process, changing
+nothing on the machine.
 
 **Windows runs the app, not the jukebox.** Docker Desktop's Linux VM has no
 access to the sound card, so librespot cannot play anything. The admin panel,
